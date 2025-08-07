@@ -16,7 +16,8 @@
     "@mui/material": "^5.15.15",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "twl-linker": "1.0.0"
+    "tsv-quote-converters": "^1.1.9",
+    "twl-linker": "^1.0.2"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",

@@ -3,7 +3,6 @@ import {
   AppBar,
   Toolbar,
   Typography,
-  Container,
   Card,
   CardContent,
   Autocomplete,
@@ -28,6 +27,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { BibleBookData } from '@common/books';
 import { generateTWL } from 'twl-linker';
+import { convertGLQuotes2OLQuotes } from 'tsv-quote-converters';
 
 const theme = createTheme({
   typography: {
@@ -44,6 +44,57 @@ function App() {
   const [showOnlySixColumns, setShowOnlySixColumns] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'raw'
 
+  // Helper function to add GLQuote and GLOccurrence columns
+  const addGLQuoteColumns = (tsvContent) => {
+    // Ensure input is a string
+    if (typeof tsvContent !== 'string') {
+      console.error('addGLQuoteColumns received non-string input:', typeof tsvContent, tsvContent);
+      return '';
+    }
+
+    const lines = tsvContent.split('\n');
+    if (lines.length === 0) return tsvContent;
+
+    // Parse header row to find column indices
+    const headers = lines[0].split('\t');
+    const origWordsIndex = headers.findIndex((h) => h === 'OrigWords');
+    const occurrenceIndex = headers.findIndex((h) => h === 'Occurrence');
+
+    if (origWordsIndex === -1 || occurrenceIndex === -1) {
+      console.warn('Could not find OrigWords or Occurrence columns');
+      return tsvContent;
+    }
+
+    // Create new headers with GLQuote and GLOccurrence inserted after Occurrence
+    const newHeaders = [...headers];
+    newHeaders.splice(occurrenceIndex + 1, 0, 'GLQuote', 'GLOccurrence');
+
+    // Process each row
+    const newLines = lines.map((line, index) => {
+      if (index === 0) {
+        // Header row
+        return newHeaders.join('\t');
+      }
+
+      const columns = line.split('\t');
+      if (columns.length <= Math.max(origWordsIndex, occurrenceIndex)) {
+        // Not enough columns, return as-is
+        return line;
+      }
+
+      // Insert GLQuote (copy of OrigWords) and GLOccurrence (copy of Occurrence) after Occurrence
+      const newColumns = [...columns];
+      const glQuoteValue = columns[origWordsIndex] || '';
+      const glOccurrenceValue = columns[occurrenceIndex] || '';
+
+      newColumns.splice(occurrenceIndex + 1, 0, glQuoteValue, glOccurrenceValue);
+
+      return newColumns.join('\t');
+    });
+
+    return newLines.join('\n');
+  };
+
   // Prepare book options for the autocomplete
   const bookOptions = Object.keys(BibleBookData).map((bookId) => ({
     value: bookId,
@@ -54,7 +105,10 @@ function App() {
   const processedTsvContent = useMemo(() => {
     if (!twlContent) return '';
 
-    const lines = twlContent.split('\n');
+    // Ensure twlContent is a string
+    const contentString = typeof twlContent === 'string' ? twlContent : String(twlContent);
+
+    const lines = contentString.split('\n');
 
     if (showOnlySixColumns) {
       // Show only first 6 columns (indices 0-5)
@@ -66,7 +120,7 @@ function App() {
         .join('\n');
     }
 
-    return twlContent;
+    return contentString;
   }, [twlContent, showOnlySixColumns]);
 
   // Parse TSV content into table data
@@ -116,7 +170,41 @@ function App() {
 
       // Generate TWL content
       const twlResult = generateTWL(decodedContent);
-      setTwlContent(twlResult);
+
+      // Ensure twlResult is a string
+      if (typeof twlResult !== 'string') {
+        throw new Error(`generateTWL returned ${typeof twlResult} instead of string`);
+      }
+
+      // Add GLQuote and GLOccurrence columns manually
+      let tsvContent = addGLQuoteColumns(twlResult);
+
+      // Ensure tsvContent is still a string
+      if (typeof tsvContent !== 'string') {
+        throw new Error(`addGLQuoteColumns returned ${typeof tsvContent} instead of string`);
+      }
+
+      // Convert GL quotes to OL quotes
+      const params = {
+        bibleLinks: ['unfoldingWord/en_ult/master'],
+        bookCode: value.value,
+        tsvContent: tsvContent,
+        trySeparatorsAndOccurrences: true,
+      };
+      const convertResponse = await convertGLQuotes2OLQuotes(params);
+
+      if (!convertResponse || typeof convertResponse !== 'object' || !convertResponse.output) {
+        throw new Error(`convertGLQuotes2OLQuotes failed: ${JSON.stringify(convertResponse)}`);
+      }
+
+      tsvContent = convertResponse?.output;
+
+      // Ensure final result is a string
+      if (typeof tsvContent !== 'string') {
+        throw new Error(`convertGLQuotes2OLQuotes returned ${typeof tsvContent} instead of string`);
+      }
+
+      setTwlContent(tsvContent);
     } catch (err) {
       setError(`Error loading book content: ${err.message}`);
     } finally {
@@ -138,7 +226,7 @@ function App() {
         </AppBar>
 
         {/* Main Content */}
-        <Container maxWidth="lg" sx={{ py: 3 }}>
+        <Box sx={{ px: '15px', py: 3 }}>
           {/* Book Selection Section */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
@@ -287,7 +375,7 @@ function App() {
               </CardContent>
             </Card>
           )}
-        </Container>
+        </Box>
       </Box>
     </ThemeProvider>
   );
