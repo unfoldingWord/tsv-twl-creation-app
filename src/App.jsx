@@ -320,8 +320,8 @@ function App() {
                     }}
                     size="small"
                   >
-                    <ToggleButton value="table">Table View</ToggleButton>
-                    <ToggleButton value="raw">Raw TSV</ToggleButton>
+                    <ToggleButton value="table">Table View (Read-Only)</ToggleButton>
+                    <ToggleButton value="raw">Edit Mode</ToggleButton>
                   </ToggleButtonGroup>
                 </Box>
 
