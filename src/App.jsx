@@ -59,15 +59,21 @@ function App() {
     const headers = lines[0].split('\t');
     const origWordsIndex = headers.findIndex((h) => h === 'OrigWords');
     const occurrenceIndex = headers.findIndex((h) => h === 'Occurrence');
+    const twLinkIndex = headers.findIndex((h) => h === 'TWLink');
 
     if (origWordsIndex === -1 || occurrenceIndex === -1) {
       console.warn('Could not find OrigWords or Occurrence columns');
       return tsvContent;
     }
 
-    // Create new headers with GLQuote and GLOccurrence inserted after Occurrence
+    if (twLinkIndex === -1) {
+      console.warn('Could not find TWLink column');
+      return tsvContent;
+    }
+
+    // Create new headers with GLQuote and GLOccurrence inserted after TWLink
     const newHeaders = [...headers];
-    newHeaders.splice(occurrenceIndex + 1, 0, 'GLQuote', 'GLOccurrence');
+    newHeaders.splice(twLinkIndex + 1, 0, 'GLQuote', 'GLOccurrence');
 
     // Process each row
     const newLines = lines.map((line, index) => {
@@ -77,17 +83,17 @@ function App() {
       }
 
       const columns = line.split('\t');
-      if (columns.length <= Math.max(origWordsIndex, occurrenceIndex)) {
+      if (columns.length <= Math.max(origWordsIndex, occurrenceIndex, twLinkIndex)) {
         // Not enough columns, return as-is
         return line;
       }
 
-      // Insert GLQuote (copy of OrigWords) and GLOccurrence (copy of Occurrence) after Occurrence
+      // Insert GLQuote (copy of OrigWords) and GLOccurrence (copy of Occurrence) after TWLink
       const newColumns = [...columns];
       const glQuoteValue = columns[origWordsIndex] || '';
       const glOccurrenceValue = columns[occurrenceIndex] || '';
 
-      newColumns.splice(occurrenceIndex + 1, 0, glQuoteValue, glOccurrenceValue);
+      newColumns.splice(twLinkIndex + 1, 0, glQuoteValue, glOccurrenceValue);
 
       return newColumns.join('\t');
     });
@@ -307,7 +313,7 @@ function App() {
                 <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
                   <FormControlLabel
                     control={<Checkbox checked={showOnlySixColumns} onChange={(e) => setShowOnlySixColumns(e.target.checked)} color="primary" />}
-                    label="Show only the 6 columns"
+                    label="Hide the Extra Columns"
                   />
 
                   <ToggleButtonGroup
