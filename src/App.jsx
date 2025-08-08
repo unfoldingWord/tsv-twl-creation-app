@@ -165,7 +165,14 @@ function App() {
       }
 
       const data = await response.json();
-      const decodedContent = atob(data.content);
+      // Properly decode Base64 content as UTF-8
+      const base64Content = data.content.replace(/\s/g, ''); // Remove any whitespace
+      const binaryString = atob(base64Content);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const decodedContent = new TextDecoder('utf-8').decode(bytes);
       setUsfmContent(decodedContent);
 
       // Generate TWL content
