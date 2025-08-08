@@ -327,7 +327,7 @@ function App() {
                     size="small"
                   >
                     <ToggleButton value="table">Table View (Read-Only)</ToggleButton>
-                    <ToggleButton value="raw">Edit Mode</ToggleButton>
+                    <ToggleButton value="raw">Raw Text {showOnlySixColumns ? <span>(Read-Only)</span> : <span>(Edit Mode)</span>}</ToggleButton>
                   </ToggleButtonGroup>
                 </Box>
 
