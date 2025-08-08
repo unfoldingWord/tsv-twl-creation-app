@@ -136,6 +136,30 @@ function App() {
     return { headers, rows };
   }, [processedTsvContent]);
 
+  // Helper function to convert rc:// links to Door43 URLs
+  const convertRcLinkToUrl = (rcLink) => {
+    if (!rcLink || !rcLink.startsWith('rc://')) {
+      return null;
+    }
+
+    try {
+      // Extract the path from rc://*/<path>
+      const match = rcLink.match(/^rc:\/\/\*\/(.+)$/);
+      if (!match) return null;
+
+      const fullPath = match[1];
+      // Get the last three parts of the path
+      const pathParts = fullPath.split('/');
+      if (pathParts.length < 3) return null;
+
+      const lastThreeParts = pathParts.slice(-3).join('/');
+      return `https://git.door43.org/unfoldingWord/en_tw/src/master/${lastThreeParts}.md`;
+    } catch (error) {
+      console.warn('Error converting rc:// link:', rcLink, error);
+      return null;
+    }
+  };
+
   const handleBookSelect = async (event, value) => {
     if (!value) {
       setSelectedBook(null);
@@ -340,9 +364,34 @@ function App() {
                         <TableBody>
                           {tableData.rows.map((row, rowIndex) => (
                             <TableRow key={rowIndex} hover>
-                              {row.map((cell, cellIndex) => (
-                                <TableCell key={cellIndex}>{cell}</TableCell>
-                              ))}
+                              {row.map((cell, cellIndex) => {
+                                const headerName = tableData.headers[cellIndex];
+                                const isTWLinkColumn = headerName === 'TWLink';
+
+                                if (isTWLinkColumn && cell) {
+                                  const url = convertRcLinkToUrl(cell);
+                                  if (url) {
+                                    return (
+                                      <TableCell key={cellIndex}>
+                                        <a
+                                          href={url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          style={{
+                                            color: '#1976d2',
+                                            textDecoration: 'underline',
+                                            cursor: 'pointer',
+                                          }}
+                                        >
+                                          {cell}
+                                        </a>
+                                      </TableCell>
+                                    );
+                                  }
+                                }
+
+                                return <TableCell key={cellIndex}>{cell}</TableCell>;
+                              })}
                             </TableRow>
                           ))}
                         </TableBody>
