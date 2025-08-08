@@ -7,7 +7,6 @@ import {
   CardContent,
   Autocomplete,
   TextField,
-  TextareaAutosize,
   CircularProgress,
   Alert,
   Box,
@@ -329,6 +328,34 @@ function App() {
                     <ToggleButton value="table">Table View (Read-Only)</ToggleButton>
                     <ToggleButton value="raw">Raw Text {showOnlySixColumns ? <span>(Read-Only)</span> : <span>(Edit Mode)</span>}</ToggleButton>
                   </ToggleButtonGroup>
+
+                  <a
+                    href={`https://git.door43.org/unfoldingWord/en_twl/_edit/master/twl_${selectedBook?.value.toUpperCase()}.tsv`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: '#1976d2',
+                      textDecoration: 'none',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      padding: '6px 12px',
+                      border: '1px solid #1976d2',
+                      borderRadius: '4px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseOver={(e) => {
+                      e.target.style.backgroundColor = '#1976d2';
+                      e.target.style.color = 'white';
+                    }}
+                    onMouseOut={(e) => {
+                      e.target.style.backgroundColor = 'transparent';
+                      e.target.style.color = '#1976d2';
+                    }}
+                  >
+                    Edit twl_{selectedBook?.value.toUpperCase()}.tsv on DCS
+                  </a>
                 </Box>
 
                 <Box sx={{ mt: 2 }}>
@@ -405,7 +432,7 @@ function App() {
                     </TableContainer>
                   ) : (
                     // Raw TSV View
-                    <TextareaAutosize
+                    <textarea
                       value={processedTsvContent}
                       readOnly={showOnlySixColumns}
                       onChange={(e) => {
@@ -415,20 +442,21 @@ function App() {
                       }}
                       style={{
                         width: '100%',
-                        minHeight: '400px',
-                        maxHeight: '600px',
+                        height: '500px',
                         padding: '16px',
                         border: '1px solid #ccc',
                         borderRadius: '4px',
                         fontFamily: 'Consolas, Monaco, "Courier New", monospace',
                         fontSize: '12px',
-                        resize: 'vertical',
+                        resize: 'both',
                         whiteSpace: 'pre',
-                        overflowX: 'auto',
-                        overflowY: 'auto',
+                        overflow: 'scroll', // Always show scrollbars
                         tabSize: 4,
                         backgroundColor: showOnlySixColumns ? '#f5f5f5' : '#ffffff',
                         cursor: showOnlySixColumns ? 'default' : 'text',
+                        boxSizing: 'border-box',
+                        outline: 'none', // Remove default focus outline
+                        lineHeight: '1.4', // Better line spacing for readability
                       }}
                       placeholder={showOnlySixColumns ? 'Read-only view showing first 6 columns...' : 'Edit TSV content here...'}
                     />
