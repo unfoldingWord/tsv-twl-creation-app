@@ -329,6 +329,58 @@ function App() {
                     <ToggleButton value="raw">Raw Text {showOnlySixColumns ? <span>(Read-Only)</span> : <span>(Edit Mode)</span>}</ToggleButton>
                   </ToggleButtonGroup>
 
+                  <button
+                    onClick={() => {
+                      if (!twlContent) return;
+
+                      // Process content to show only first 6 columns
+                      const contentString = typeof twlContent === 'string' ? twlContent : String(twlContent);
+                      const lines = contentString.split('\n');
+                      const trimmedContent = lines
+                        .map((line) => {
+                          const columns = line.split('\t');
+                          return columns.slice(0, 6).join('\t');
+                        })
+                        .join('\n');
+
+                      navigator.clipboard
+                        .writeText(trimmedContent)
+                        .then(() => {
+                          // Show user-friendly notification
+                          alert("This TWL's first 6 columns have been copied to your clipboard. You can now 'Edit on DCS' and paste in the copied content.");
+                          console.log('TSV content copied to clipboard (6 columns)');
+                        })
+                        .catch((err) => {
+                          console.error('Failed to copy to clipboard:', err);
+                          alert('Failed to copy to clipboard. Please try again.');
+                        });
+                    }}
+                    style={{
+                      color: '#1976d2',
+                      textDecoration: 'none',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      padding: '6px 12px',
+                      border: '1px solid #1976d2',
+                      borderRadius: '4px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      transition: 'all 0.2s ease',
+                      backgroundColor: 'transparent',
+                      cursor: 'pointer',
+                    }}
+                    onMouseOver={(e) => {
+                      e.target.style.backgroundColor = '#1976d2';
+                      e.target.style.color = 'white';
+                    }}
+                    onMouseOut={(e) => {
+                      e.target.style.backgroundColor = 'transparent';
+                      e.target.style.color = '#1976d2';
+                    }}
+                  >
+                    Copy to Clipboard
+                  </button>
+
                   <a
                     href={`https://git.door43.org/unfoldingWord/en_twl/_edit/master/twl_${selectedBook?.value.toUpperCase()}.tsv`}
                     target="_blank"
