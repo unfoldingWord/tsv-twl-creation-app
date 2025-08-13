@@ -691,15 +691,15 @@ function App() {
 
     const bracketText = bracketMatch[0];
     const bracketIndex = bracketMatch.index;
-    
+
     // Get text before and after the brackets
     const beforeText = contextText.substring(0, bracketIndex).trim();
     const afterText = contextText.substring(bracketIndex + bracketText.length).trim();
-    
+
     // Split into words and take max 2 words before and after
     const beforeWords = beforeText ? beforeText.split(/\s+/).slice(-2) : [];
     const afterWords = afterText ? afterText.split(/\s+/).slice(0, 2) : [];
-    
+
     // Construct truncated text
     const parts = [];
     if (beforeWords.length > 0) {
@@ -709,7 +709,7 @@ function App() {
     if (afterWords.length > 0) {
       parts.push(afterWords.join(' '));
     }
-    
+
     return parts.join(' ');
   };
 
@@ -778,7 +778,7 @@ function App() {
                     options={bookOptions}
                     getOptionLabel={(option) => option.label}
                     onChange={handleBookSelect}
-                    renderInput={(params) => <TextField {...params} label="Search for a Bible book..." variant="outlined" fullWidth />}
+                    renderInput={(params) => <TextField {...params} label="Select a Bible book..." variant="outlined" fullWidth />}
                     value={selectedBook}
                     isOptionEqualToValue={(option, value) => option.value === value?.value}
                     sx={{ mt: 2 }}
@@ -1139,9 +1139,7 @@ function App() {
                                     return (
                                       <TableCell key={cellIndex}>
                                         <Tooltip title={cell} arrow>
-                                          <span style={{ cursor: 'help' }}>
-                                            {truncatedText}
-                                          </span>
+                                          <span style={{ cursor: 'help' }}>{truncatedText}</span>
                                         </Tooltip>
                                       </TableCell>
                                     );
