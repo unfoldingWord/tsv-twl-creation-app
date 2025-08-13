@@ -1,7 +1,7 @@
 {
   "name": "tsv-twl-creation-app",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,7 +17,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsv-quote-converters": "^1.1.9",
-    "twl-linker": "^1.0.6"
+    "twl-linker": "^1.0.7"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",

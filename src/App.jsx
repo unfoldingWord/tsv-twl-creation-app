@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -21,7 +21,10 @@ import {
   Paper,
   ToggleButton,
   ToggleButtonGroup,
+  Button,
+  Tooltip,
 } from '@mui/material';
+import { ContentPaste as PasteIcon, Upload as UploadIcon, CloudDownload as DownloadIcon } from '@mui/icons-material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { BibleBookData } from '@common/books';
@@ -34,14 +37,109 @@ const theme = createTheme({
   },
 });
 
+// Cookie utility functions
+const setCookie = (name, value, days = 365) => {
+  const expires = new Date();
+  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+};
+
+const getCookie = (name) => {
+  const nameEQ = name + '=';
+  const ca = document.cookie.split(';');
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+  }
+  return null;
+};
+
+// LocalStorage utility functions (more reliable than cookies)
+const setLocalStorage = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    console.warn('Failed to save to localStorage:', error);
+  }
+};
+
+const getLocalStorage = (key) => {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    console.warn('Failed to read from localStorage:', error);
+    return null;
+  }
+};
+
 function App() {
-  const [selectedBook, setSelectedBook] = useState(null);
+  // Try localStorage for saved book, with cookie fallback
+  const savedBookData = getLocalStorage('selectedBook') || getCookie('selectedBook');
+  let savedBook = null;
+  if (savedBookData) {
+    try {
+      savedBook = JSON.parse(savedBookData);
+    } catch (error) {
+      console.warn('Failed to parse saved book data:', error);
+    }
+  }
+
+  const [selectedBook, setSelectedBook] = useState(savedBook);
+  // Try localStorage first, then fallback to cookies
+  const savedBranch = getLocalStorage('selectedBranch') || getCookie('selectedBranch');
+  console.log('Loaded branch from storage:', savedBranch);
+  console.log('Loaded book from storage:', savedBook);
+  const [selectedBranch, setSelectedBranch] = useState(savedBranch || 'master');
+  const [branches, setBranches] = useState([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [branchesError, setBranchesError] = useState('');
   const [usfmContent, setUsfmContent] = useState('');
   const [twlContent, setTwlContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showOnlySixColumns, setShowOnlySixColumns] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'raw'
+  const [existingTwlContent, setExistingTwlContent] = useState('');
+  const [showExistingTwlTextArea, setShowExistingTwlTextArea] = useState(false);
+  const [existingTwlValid, setExistingTwlValid] = useState(true);
+
+  // Fetch branches on component mount
+  useEffect(() => {
+    const fetchBranches = async () => {
+      setBranchesLoading(true);
+      setBranchesError('');
+
+      try {
+        const response = await fetch('https://git.door43.org/api/v1/repos/unfoldingWord/en_twl/branches');
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch branches: ${response.statusText}`);
+        }
+
+        const branchData = await response.json();
+        const branchNames = branchData.map((branch) => branch.name).sort();
+        setBranches(branchNames);
+      } catch (err) {
+        setBranchesError(`Error loading branches: ${err.message}`);
+      } finally {
+        setBranchesLoading(false);
+      }
+    };
+
+    fetchBranches();
+  }, []);
+
+  // Handle branch selection
+  const handleBranchSelect = (event, value) => {
+    const branchName = value?.value || 'master';
+    console.log('Setting branch to:', branchName);
+    setSelectedBranch(branchName);
+    // Save to both localStorage and cookies for maximum compatibility
+    setLocalStorage('selectedBranch', branchName);
+    setCookie('selectedBranch', branchName);
+    console.log('Branch saved. localStorage:', getLocalStorage('selectedBranch'), 'Cookies:', document.cookie);
+  };
 
   // Helper function to add GLQuote and GLOccurrence columns
   const addGLQuoteColumns = (tsvContent) => {
@@ -106,6 +204,15 @@ function App() {
     label: `${BibleBookData[bookId].title} (${bookId})`,
   }));
 
+  // Prepare branch options for the autocomplete
+  const branchOptions = branches.map((branchName) => ({
+    value: branchName,
+    label: branchName,
+  }));
+
+  // Find the selected branch option for the autocomplete
+  const selectedBranchOption = branchOptions.find((option) => option.value === selectedBranch) || null;
+
   // Process TSV content for display
   const processedTsvContent = useMemo(() => {
     if (!twlContent) return '';
@@ -168,6 +275,9 @@ function App() {
   const handleBookSelect = async (event, value) => {
     if (!value) {
       setSelectedBook(null);
+      // Clear saved book from both localStorage and cookies
+      setLocalStorage('selectedBook', '');
+      setCookie('selectedBook', '');
       setUsfmContent('');
       setTwlContent('');
       setError('');
@@ -177,14 +287,116 @@ function App() {
     }
 
     setSelectedBook(value);
-    setLoading(true);
+    // Save to both localStorage and cookies for maximum compatibility
+    setLocalStorage('selectedBook', JSON.stringify(value));
+    setCookie('selectedBook', JSON.stringify(value));
     setError('');
     setTwlContent('');
     setShowOnlySixColumns(false);
     setViewMode('table');
+  };
+
+  // Handler for pasting text from clipboard
+  const handlePasteText = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      handleExistingTwlChange(text);
+      setShowExistingTwlTextArea(true);
+    } catch (err) {
+      alert('Failed to read from clipboard. Please try again or paste manually.');
+      setShowExistingTwlTextArea(true);
+    }
+  };
+
+  // Handler for uploading TSV file
+  const handleUploadFile = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Check if it's a TSV file
+    if (!file.name.toLowerCase().endsWith('.tsv')) {
+      alert('Please select a .tsv file');
+      return;
+    }
+
+    // Check file size (limit to 10MB to prevent huge files)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File is too large. Please select a file smaller than 10MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target.result;
+        handleExistingTwlChange(content);
+        setShowExistingTwlTextArea(true);
+      } catch (err) {
+        alert('Failed to read file content');
+      }
+    };
+    reader.onerror = () => {
+      alert('Failed to read file');
+    };
+    reader.readAsText(file);
+  };
+
+  // Handler for fetching from DCS
+  const handleFetchFromDcs = async () => {
+    if (!selectedBook) {
+      alert('Please select a book first');
+      return;
+    }
 
     try {
-      const bookData = BibleBookData[value.value];
+      setLoading(true);
+      const bookCode = selectedBook.value.toUpperCase();
+      const url = `https://git.door43.org/api/v1/repos/unfoldingWord/en_twl/contents/twl_${bookCode}.tsv?ref=${selectedBranch}`;
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch TWL file: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Decode Base64 content as UTF-8
+      const base64Content = data.content.replace(/\s/g, ''); // Remove any whitespace
+      const binaryString = atob(base64Content);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const decodedContent = new TextDecoder('utf-8').decode(bytes);
+
+      handleExistingTwlChange(decodedContent);
+      setShowExistingTwlTextArea(true);
+    } catch (err) {
+      alert(`Error fetching TWL file: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handler for generating TWLs
+  const handleGenerateTwl = async () => {
+    if (!selectedBook) {
+      alert('Please select a book first');
+      return;
+    }
+
+    // Validate existing TWL content if provided
+    if (existingTwlContent.trim() && !existingTwlValid) {
+      alert('Please fix the existing TWL content. It must have exactly 6 columns per row.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const bookData = BibleBookData[selectedBook.value];
       const usfmFileName = bookData.usfm;
 
       const response = await fetch(`https://git.door43.org/api/v1/repos/unfoldingWord/en_ult/contents/${usfmFileName}.usfm?ref=master`);
@@ -222,8 +434,8 @@ function App() {
 
       // Convert GL quotes to OL quotes
       const params = {
-        bibleLinks: ['unfoldingWord/en_ult/master'],
-        bookCode: value.value,
+        bibleLinks: [`unfoldingWord/en_ult/master`],
+        bookCode: selectedBook.value,
         tsvContent: tsvContent,
         trySeparatorsAndOccurrences: true,
       };
@@ -240,11 +452,300 @@ function App() {
         throw new Error(`convertGLQuotes2OLQuotes returned ${typeof tsvContent} instead of string`);
       }
 
+      // Merge with existing TWLs if provided
+      if (existingTwlContent.trim() && existingTwlValid) {
+        tsvContent = mergeExistingTwls(tsvContent, existingTwlContent);
+      }
+
       setTwlContent(tsvContent);
     } catch (err) {
       setError(`Error loading book content: ${err.message}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Function to validate existing TWL content
+  const validateExistingTwl = (content) => {
+    if (!content.trim()) {
+      return true; // Empty content is valid (no merging needed)
+    }
+
+    const lines = content
+      .trim()
+      .split('\n')
+      .filter((line) => line.trim());
+    if (lines.length === 0) {
+      return true; // No data lines
+    }
+
+    // Check each line has exactly 6 columns
+    for (let i = 0; i < lines.length; i++) {
+      const columns = lines[i].split('\t');
+      if (columns.length !== 6) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  // Function to parse TSV content
+  const parseTsv = (content, hasHeader = true) => {
+    const lines = content
+      .trim()
+      .split('\n')
+      .filter((line) => line.trim());
+    if (lines.length === 0) return { headers: [], rows: [] };
+
+    let headers = [];
+    let rows = [];
+
+    if (hasHeader) {
+      headers = lines[0].split('\t');
+      rows = lines.slice(1).map((line) => line.split('\t'));
+    } else {
+      rows = lines.map((line) => line.split('\t'));
+    }
+
+    return { headers, rows };
+  };
+
+  // Function to check if existing TWL has header
+  const hasHeader = (content) => {
+    const lines = content
+      .trim()
+      .split('\n')
+      .filter((line) => line.trim());
+    if (lines.length === 0) return false;
+
+    const firstLine = lines[0].split('\t');
+    return firstLine.length >= 3 && firstLine[0] === 'Reference' && firstLine[1] === 'ID' && firstLine[2] === 'Tags';
+  };
+
+  // Function to merge existing TWLs with generated TWLs
+  const mergeExistingTwls = (generatedContent, existingContent) => {
+    if (!existingContent.trim()) {
+      return generatedContent; // No existing content to merge
+    }
+
+    // Parse generated content (always has header)
+    const generated = parseTsv(generatedContent, true);
+    const generatedHeaders = generated.headers;
+    const generatedRows = generated.rows;
+
+    // Parse existing content (check if it has header)
+    const existingHasHeader = hasHeader(existingContent);
+    const existing = parseTsv(existingContent, existingHasHeader);
+    const existingRows = existing.rows;
+
+    // Create a map of generated rows for quick lookup
+    // Key: Reference + "|" + OrigWords + "|" + Occurrence
+    const generatedMap = new Map();
+    const origWordsIndex = generatedHeaders.findIndex((h) => h === 'OrigWords');
+    const occurrenceIndex = generatedHeaders.findIndex((h) => h === 'Occurrence');
+    const matchTypeIndex = generatedHeaders.findIndex((h) => h === 'Match_Type');
+    const disambiguationIndex = generatedHeaders.findIndex((h) => h === 'Disambiguation');
+
+    generatedRows.forEach((row, index) => {
+      const reference = row[0] || '';
+      const origWords = origWordsIndex >= 0 ? row[origWordsIndex] || '' : '';
+      const occurrence = occurrenceIndex >= 0 ? row[occurrenceIndex] || '' : '';
+      const key = `${reference}|${origWords}|${occurrence}`;
+      generatedMap.set(key, { row, index });
+    });
+
+    // Process existing rows
+    const mergedRows = [...generatedRows]; // Start with all generated rows
+    const insertions = []; // Track insertions for proper ordering
+
+    existingRows.forEach((existingRow) => {
+      const reference = existingRow[0] || '';
+      const origWords = origWordsIndex >= 0 ? existingRow[origWordsIndex] || '' : '';
+      const occurrence = occurrenceIndex >= 0 ? existingRow[occurrenceIndex] || '' : '';
+      const key = `${reference}|${origWords}|${occurrence}`;
+
+      const match = generatedMap.get(key);
+
+      if (match) {
+        // Replace first 6 columns of the generated row with existing row data
+        for (let i = 0; i < Math.min(6, existingRow.length); i++) {
+          mergedRows[match.index][i] = existingRow[i];
+        }
+        // Update Match_Type to "existing TWL"
+        if (matchTypeIndex >= 0 && matchTypeIndex < mergedRows[match.index].length) {
+          mergedRows[match.index][matchTypeIndex] = 'existing TWL';
+        }
+        // Update Disambiguation to "single"
+        if (disambiguationIndex >= 0 && disambiguationIndex < mergedRows[match.index].length) {
+          mergedRows[match.index][disambiguationIndex] = 'single';
+        }
+      } else {
+        // No match found, need to insert this row
+        // Extend existing row to match generated row length with empty columns
+        const extendedRow = [...existingRow];
+        while (extendedRow.length < generatedHeaders.length) {
+          extendedRow.push('');
+        }
+
+        // Set Match_Type and Disambiguation for new rows
+        if (matchTypeIndex >= 0) extendedRow[matchTypeIndex] = 'existing TWL';
+        if (disambiguationIndex >= 0) extendedRow[disambiguationIndex] = 'single';
+
+        insertions.push({
+          reference,
+          row: extendedRow,
+        });
+      }
+    });
+
+    // Insert new rows in proper order
+    insertions.forEach((insertion) => {
+      const { reference, row } = insertion;
+
+      // Find the right position to insert
+      let insertIndex = mergedRows.length; // Default to end
+
+      for (let i = 0; i < mergedRows.length; i++) {
+        const currentRef = mergedRows[i][0] || '';
+
+        // Compare references (assuming format like "1:2")
+        if (compareReferences(reference, currentRef) < 0) {
+          insertIndex = i;
+          break;
+        } else if (compareReferences(reference, currentRef) === 0) {
+          // Same reference, insert before any existing same reference
+          insertIndex = i;
+          break;
+        }
+      }
+
+      mergedRows.splice(insertIndex, 0, row);
+    });
+
+    // Rebuild the TSV content
+    const result = [generatedHeaders.join('\t'), ...mergedRows.map((row) => row.join('\t'))].join('\n');
+    return result;
+  };
+
+  // Helper function to compare references (e.g., "1:2" vs "1:10")
+  const compareReferences = (ref1, ref2) => {
+    const parseRef = (ref) => {
+      const parts = ref.split(':');
+      return {
+        chapter: parseInt(parts[0]) || 0,
+        verse: parseInt(parts[1]) || 0,
+      };
+    };
+
+    const parsed1 = parseRef(ref1);
+    const parsed2 = parseRef(ref2);
+
+    if (parsed1.chapter !== parsed2.chapter) {
+      return parsed1.chapter - parsed2.chapter;
+    }
+    return parsed1.verse - parsed2.verse;
+  };
+
+  // Update existing TWL content validation
+  const handleExistingTwlChange = (content) => {
+    setExistingTwlContent(content);
+    setExistingTwlValid(validateExistingTwl(content));
+  };
+
+  // Helper function to convert reference to Translation Notes URL
+  const convertReferenceToTnUrl = (reference) => {
+    if (!reference || !selectedBook) {
+      return null;
+    }
+
+    try {
+      // Split reference on colon (e.g., "1:1" -> ["1", "1"])
+      const parts = reference.split(':');
+      if (parts.length !== 2) {
+        return null;
+      }
+
+      const chapter = parts[0];
+      const verse = parts[1];
+      const bookCode = selectedBook.value.toLowerCase();
+
+      return `https://preview.door43.org/u/unfoldingWord/en_tn?book=${bookCode}#${bookCode}-${chapter}-${verse}`;
+    } catch (error) {
+      console.warn('Error converting reference to TN URL:', reference, error);
+      return null;
+    }
+  };
+
+  // Helper function to truncate Context column content around [...] markers
+  const truncateContext = (contextText) => {
+    if (!contextText || typeof contextText !== 'string') {
+      return contextText;
+    }
+
+    // Look for [...] pattern
+    const bracketMatch = contextText.match(/\[[^\]]*\]/);
+    if (!bracketMatch) {
+      return contextText; // No brackets found, return as-is
+    }
+
+    const bracketText = bracketMatch[0];
+    const bracketIndex = bracketMatch.index;
+    
+    // Get text before and after the brackets
+    const beforeText = contextText.substring(0, bracketIndex).trim();
+    const afterText = contextText.substring(bracketIndex + bracketText.length).trim();
+    
+    // Split into words and take max 2 words before and after
+    const beforeWords = beforeText ? beforeText.split(/\s+/).slice(-2) : [];
+    const afterWords = afterText ? afterText.split(/\s+/).slice(0, 2) : [];
+    
+    // Construct truncated text
+    const parts = [];
+    if (beforeWords.length > 0) {
+      parts.push(beforeWords.join(' '));
+    }
+    parts.push(bracketText);
+    if (afterWords.length > 0) {
+      parts.push(afterWords.join(' '));
+    }
+    
+    return parts.join(' ');
+  };
+
+  // Function to handle reference link clicks with window management
+  const handleReferenceClick = (reference, event) => {
+    event.preventDefault();
+
+    const url = convertReferenceToTnUrl(reference);
+    if (!url) return;
+
+    // Try to focus existing window and change the anchor
+    const windowName = 'en_tn_window';
+
+    try {
+      // Open or focus the window
+      const tnWindow = window.open(url, windowName);
+
+      if (tnWindow) {
+        // Focus the window
+        tnWindow.focus();
+
+        // If the window was already open, we need to navigate to the new anchor
+        // We'll do this by changing the location after a short delay to ensure the window is ready
+        setTimeout(() => {
+          try {
+            tnWindow.location.href = url;
+          } catch (e) {
+            // If we can't access the window (cross-origin), just let the normal navigation happen
+            console.log('Cross-origin restriction, normal navigation will occur');
+          }
+        }, 100);
+      }
+    } catch (error) {
+      console.warn('Error opening TN window:', error);
+      // Fallback to normal window opening
+      window.open(url, windowName);
     }
   };
 
@@ -263,21 +764,151 @@ function App() {
 
         {/* Main Content */}
         <Box sx={{ px: '15px', py: 3 }}>
-          {/* Book Selection Section */}
+          {/* Book and Branch Selection Section */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Select a Book of the Bible
+                Select a Book of the Bible and Branch
               </Typography>
-              <Autocomplete
-                options={bookOptions}
-                getOptionLabel={(option) => option.label}
-                onChange={handleBookSelect}
-                renderInput={(params) => <TextField {...params} label="Search for a Bible book..." variant="outlined" fullWidth />}
-                value={selectedBook}
-                isOptionEqualToValue={(option, value) => option.value === value?.value}
-                sx={{ mt: 2 }}
-              />
+
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                {/* Book Selector */}
+                <Box sx={{ flex: 1, minWidth: 300 }}>
+                  <Autocomplete
+                    options={bookOptions}
+                    getOptionLabel={(option) => option.label}
+                    onChange={handleBookSelect}
+                    renderInput={(params) => <TextField {...params} label="Search for a Bible book..." variant="outlined" fullWidth />}
+                    value={selectedBook}
+                    isOptionEqualToValue={(option, value) => option.value === value?.value}
+                    sx={{ mt: 2 }}
+                  />
+                </Box>
+
+                {/* Branch Selector */}
+                <Box sx={{ flex: 1, minWidth: 200 }}>
+                  <Autocomplete
+                    options={branchOptions}
+                    getOptionLabel={(option) => option.label}
+                    onChange={handleBranchSelect}
+                    renderInput={(params) => <TextField {...params} label="Select branch..." variant="outlined" fullWidth />}
+                    value={selectedBranchOption}
+                    isOptionEqualToValue={(option, value) => option.value === value?.value}
+                    loading={branchesLoading}
+                    sx={{ mt: 2 }}
+                  />
+                  {branchesError && (
+                    <Alert severity="error" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                      {branchesError}
+                    </Alert>
+                  )}
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+
+          {/* Load Existing TWLs Section */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
+                <Typography variant="body1" sx={{ color: 'rgba(0, 0, 0, 0.87)', fontWeight: 'bold' }}>
+                  Load Existing TWLs (optional):
+                </Typography>
+
+                <Button
+                  onClick={handlePasteText}
+                  startIcon={<PasteIcon />}
+                  variant="text"
+                  sx={{
+                    color: '#1976d2',
+                    textTransform: 'none',
+                    '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
+                  }}
+                >
+                  Paste text
+                </Button>
+
+                <Box sx={{ position: 'relative' }}>
+                  <input type="file" accept=".tsv" onChange={handleUploadFile} style={{ display: 'none' }} id="upload-tsv-file" />
+                  <label htmlFor="upload-tsv-file">
+                    <Button
+                      component="span"
+                      startIcon={<UploadIcon />}
+                      variant="text"
+                      sx={{
+                        color: '#1976d2',
+                        textTransform: 'none',
+                        '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
+                      }}
+                    >
+                      Upload a TSV file
+                    </Button>
+                  </label>
+                </Box>
+
+                <Button
+                  onClick={handleFetchFromDcs}
+                  startIcon={<DownloadIcon />}
+                  variant="text"
+                  disabled={!selectedBook}
+                  sx={{
+                    color: selectedBook ? '#1976d2' : 'rgba(0, 0, 0, 0.26)',
+                    textTransform: 'none',
+                    '&:hover': selectedBook ? { backgroundColor: 'rgba(25, 118, 210, 0.04)' } : {},
+                  }}
+                >
+                  Fetch en_twl / twl_{selectedBook?.value.toUpperCase() || 'BOOK'}.tsv ({selectedBranch}) from DCS
+                </Button>
+              </Box>
+
+              {showExistingTwlTextArea && (
+                <textarea
+                  value={existingTwlContent}
+                  onChange={(e) => handleExistingTwlChange(e.target.value)}
+                  placeholder="Existing TWL content will appear here... (Must have exactly 6 columns per row)"
+                  style={{
+                    width: '100%',
+                    height: '200px',
+                    padding: '12px',
+                    border: `2px solid ${existingTwlValid ? '#ccc' : '#f44336'}`,
+                    borderRadius: '4px',
+                    fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                    fontSize: '12px',
+                    resize: 'both',
+                    whiteSpace: 'pre',
+                    overflow: 'auto',
+                    backgroundColor: existingTwlValid ? '#ffffff' : '#ffebee',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                    lineHeight: '1.4',
+                  }}
+                />
+              )}
+
+              {showExistingTwlTextArea && !existingTwlValid && (
+                <Alert severity="error" sx={{ mt: 1 }}>
+                  Invalid TWL format. Each row must have exactly 6 tab-separated columns.
+                </Alert>
+              )}
+
+              {/* Generate TWLs Button */}
+              <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
+                <Button
+                  onClick={handleGenerateTwl}
+                  variant="contained"
+                  disabled={!selectedBook || loading || (existingTwlContent.trim() && !existingTwlValid)}
+                  sx={{
+                    backgroundColor: '#1976d2',
+                    '&:hover': { backgroundColor: '#1565c0' },
+                    textTransform: 'none',
+                    px: 4,
+                    py: 1.5,
+                  }}
+                >
+                  {loading ? <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} /> : null}
+                  Generate TWLs
+                </Button>
+              </Box>
             </CardContent>
           </Card>
 
@@ -382,7 +1013,7 @@ function App() {
                   </button>
 
                   <a
-                    href={`https://git.door43.org/unfoldingWord/en_twl/_edit/master/twl_${selectedBook?.value.toUpperCase()}.tsv`}
+                    href={`https://git.door43.org/unfoldingWord/en_twl/_edit/${selectedBranch}/twl_${selectedBook?.value.toUpperCase()}.tsv`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
@@ -452,6 +1083,8 @@ function App() {
                               {row.map((cell, cellIndex) => {
                                 const headerName = tableData.headers[cellIndex];
                                 const isTWLinkColumn = headerName === 'TWLink';
+                                const isReferenceColumn = headerName === 'Reference';
+                                const isContextColumn = headerName === 'Context';
 
                                 if (isTWLinkColumn && cell) {
                                   const url = convertRcLinkToUrl(cell);
@@ -470,6 +1103,46 @@ function App() {
                                         >
                                           {cell}
                                         </a>
+                                      </TableCell>
+                                    );
+                                  }
+                                }
+
+                                if (isReferenceColumn && cell && selectedBook) {
+                                  const url = convertReferenceToTnUrl(cell);
+                                  if (url) {
+                                    return (
+                                      <TableCell key={cellIndex}>
+                                        <Tooltip title="View the TNs for this verse" arrow>
+                                          <a
+                                            href={url}
+                                            onClick={(e) => handleReferenceClick(cell, e)}
+                                            style={{
+                                              color: '#1976d2',
+                                              textDecoration: 'underline',
+                                              cursor: 'pointer',
+                                            }}
+                                          >
+                                            {cell}
+                                          </a>
+                                        </Tooltip>
+                                      </TableCell>
+                                    );
+                                  }
+                                }
+
+                                if (isContextColumn && cell) {
+                                  const truncatedText = truncateContext(cell);
+                                  const shouldTruncate = truncatedText !== cell;
+
+                                  if (shouldTruncate) {
+                                    return (
+                                      <TableCell key={cellIndex}>
+                                        <Tooltip title={cell} arrow>
+                                          <span style={{ cursor: 'help' }}>
+                                            {truncatedText}
+                                          </span>
+                                        </Tooltip>
                                       </TableCell>
                                     );
                                   }
