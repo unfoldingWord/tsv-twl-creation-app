@@ -5,7 +5,7 @@ import React from 'react';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Tooltip } from '@mui/material';
 import { Delete as DeleteIcon } from '@mui/icons-material';
 import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConverters.js';
-import { truncateContext } from '../utils/tsvUtils.js';
+import { truncateContextAroundWord } from '../utils/tsvUtils.js';
 import { parseDisambiguationOptions, renderDisambiguationText } from '../utils/disambiguationUtils.js';
 
 const TWLTable = ({ tableData, selectedBook, onDeleteRow, onDisambiguationClick, onReferenceClick, showOnlySixColumns = false }) => {
@@ -128,7 +128,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onDisambiguationClick,
 
                 // Context column with truncation and tooltip
                 if (isContextColumn && cell) {
-                  const truncatedText = truncateContext(cell);
+                  const truncatedText = truncateContextAroundWord(cell);
                   const shouldTruncate = truncatedText !== cell;
 
                   if (shouldTruncate) {

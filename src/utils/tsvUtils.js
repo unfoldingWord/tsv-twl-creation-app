@@ -110,7 +110,7 @@ export const processTsvContent = (content, showOnlySixColumns) => {
 /**
  * Truncate context text for display with ellipsis
  */
-export const truncateContext = (text, maxLength = 100) => {
+export const truncateContextBeginning = (text, maxLength = 100) => {
   if (!text || text.length <= maxLength) return text;
 
   // Find last complete word within limit
@@ -122,4 +122,40 @@ export const truncateContext = (text, maxLength = 100) => {
   }
 
   return truncated + '...';
+};
+
+// Helper function to truncate Context column content around [...] markers
+export const truncateContextAroundWord = (contextText) => {
+  if (!contextText || typeof contextText !== 'string') {
+    return contextText;
+  }
+
+  // Look for [...] pattern
+  const bracketMatch = contextText.match(/\[[^\]]*\]/);
+  if (!bracketMatch) {
+    return contextText; // No brackets found, return as-is
+  }
+
+  const bracketText = bracketMatch[0];
+  const bracketIndex = bracketMatch.index;
+
+  // Get text before and after the brackets
+  const beforeText = contextText.substring(0, bracketIndex).trim();
+  const afterText = contextText.substring(bracketIndex + bracketText.length).trim();
+
+  // Split into words and take max 2 words before and after
+  const beforeWords = beforeText ? beforeText.split(/\s+/).slice(-2) : [];
+  const afterWords = afterText ? afterText.split(/\s+/).slice(0, 2) : [];
+
+  // Construct truncated text
+  const parts = [];
+  if (beforeWords.length > 0) {
+    parts.push(beforeWords.join(' '));
+  }
+  parts.push(bracketText);
+  if (afterWords.length > 0) {
+    parts.push(afterWords.join(' '));
+  }
+
+  return parts.join(' ');
 };
