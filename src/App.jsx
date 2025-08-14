@@ -23,8 +23,9 @@ import {
   ToggleButtonGroup,
   Button,
   Tooltip,
+  IconButton,
 } from '@mui/material';
-import { ContentPaste as PasteIcon, Upload as UploadIcon, CloudDownload as DownloadIcon } from '@mui/icons-material';
+import { ContentPaste as PasteIcon, Upload as UploadIcon, CloudDownload as DownloadIcon, Delete as DeleteIcon, Undo as UndoIcon } from '@mui/icons-material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { BibleBookData } from '@common/books';
@@ -103,6 +104,8 @@ function App() {
   const [existingTwlContent, setExistingTwlContent] = useState('');
   const [showExistingTwlTextArea, setShowExistingTwlTextArea] = useState(false);
   const [existingTwlValid, setExistingTwlValid] = useState(true);
+  const [deletedRow, setDeletedRow] = useState(null); // { row: [...], index: number }
+  const [tableRows, setTableRows] = useState([]); // Store actual table data for manipulation
 
   // Fetch branches on component mount
   useEffect(() => {
@@ -236,7 +239,7 @@ function App() {
   }, [twlContent, showOnlySixColumns]);
 
   // Parse TSV content into table data
-  const tableData = useMemo(() => {
+  const baseTableData = useMemo(() => {
     if (!processedTsvContent) return { headers: [], rows: [] };
 
     const lines = processedTsvContent.split('\n').filter((line) => line.trim());
@@ -247,6 +250,21 @@ function App() {
 
     return { headers, rows };
   }, [processedTsvContent]);
+
+  // Update tableRows when base data changes
+  useEffect(() => {
+    setTableRows(baseTableData.rows);
+    setDeletedRow(null); // Clear any undo state when data changes
+  }, [baseTableData]);
+
+  // Final table data for display (filtered rows)
+  const tableData = useMemo(
+    () => ({
+      headers: baseTableData.headers,
+      rows: tableRows,
+    }),
+    [baseTableData.headers, tableRows]
+  );
 
   // Helper function to convert rc:// links to Door43 URLs
   const convertRcLinkToUrl = (rcLink) => {
@@ -539,11 +557,12 @@ function App() {
     const existing = parseTsv(existingContent, existingHasHeader);
     const existingRows = existing.rows;
 
+    // Add "Already Exists" column to headers if there are existing rows
+    const finalHeaders = existingRows.length > 0 ? [...generatedHeaders, 'Already Exists'] : generatedHeaders;
+
     // Find column indices
     const origWordsIndex = generatedHeaders.findIndex((h) => h === 'OrigWords');
     const occurrenceIndex = generatedHeaders.findIndex((h) => h === 'Occurrence');
-    const matchTypeIndex = generatedHeaders.findIndex((h) => h === 'Match_Type');
-    const disambiguationIndex = generatedHeaders.findIndex((h) => h === 'Disambiguation');
 
     // Initialize pointers
     let existingPointer = 0;
@@ -556,9 +575,10 @@ function App() {
       while (extendedRow.length < generatedHeaders.length) {
         extendedRow.push('');
       }
-      // Set Match_Type and Disambiguation for existing rows
-      if (matchTypeIndex >= 0) extendedRow[matchTypeIndex] = 'existing TWL';
-      if (disambiguationIndex >= 0) extendedRow[disambiguationIndex] = 'single';
+      // Add "x" to "Already Exists" column if there are existing rows
+      if (existingRows.length > 0) {
+        extendedRow.push('x');
+      }
       return extendedRow;
     };
 
@@ -582,67 +602,84 @@ function App() {
       for (let i = 0; i < Math.min(6, existingRow.length); i++) {
         updatedRow[i] = existingRow[i];
       }
-      // Update Match_Type to "existing TWL"
-      if (matchTypeIndex >= 0 && matchTypeIndex < updatedRow.length) {
-        updatedRow[matchTypeIndex] = 'existing TWL';
-      }
-      // Update Disambiguation to "single"
-      if (disambiguationIndex >= 0 && disambiguationIndex < updatedRow.length) {
-        updatedRow[disambiguationIndex] = 'single';
+      // Add "x" to "Already Exists" column if there are existing rows
+      if (existingRows.length > 0) {
+        updatedRow.push('x');
       }
       return updatedRow;
     };
 
-    // Main merging loop using two pointers
-    while (existingPointer < existingRows.length && generatedPointer < generatedRows.length) {
+    // Main merging loop - process existing rows in order
+    while (existingPointer < existingRows.length) {
       const existingRow = existingRows[existingPointer];
-      const generatedRow = generatedRows[generatedPointer];
-
       const existingRef = existingRow[0] || '';
-      const generatedRef = generatedRow[0] || '';
 
-      const refComparison = compareReferences(existingRef, generatedRef);
+      // First, add all generated rows with references less than the current existing row
+      while (generatedPointer < generatedRows.length) {
+        const generatedRow = generatedRows[generatedPointer];
+        const generatedRef = generatedRow[0] || '';
 
-      if (refComparison < 0) {
-        // Existing reference is less than generated reference
-        // Insert existing row before generated row
-        mergedRows.push(createExtendedExistingRow(existingRow));
-        existingPointer++;
-      } else if (refComparison === 0) {
-        // References are the same, check for exact match
-        if (isExactMatch(existingRow, generatedRow)) {
-          // Exact match: update generated row with existing data
-          mergedRows.push(updateGeneratedRow(generatedRow, existingRow));
-          existingPointer++;
+        if (compareReferences(generatedRef, existingRef) < 0) {
+          // Generated reference is less than existing reference, add it
+          const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRow, ''] : generatedRow;
+          mergedRows.push(extendedGeneratedRow);
           generatedPointer++;
         } else {
-          // Same reference but not exact match
-          // Insert existing row first, then generated row
-          mergedRows.push(createExtendedExistingRow(existingRow));
-          existingPointer++;
+          // Generated reference is >= existing reference, break to handle existing row
+          break;
         }
-      } else {
-        // Existing reference is greater than generated reference
-        // Add generated row and advance generated pointer
-        mergedRows.push(generatedRow);
-        generatedPointer++;
       }
-    }
 
-    // Add remaining existing rows
-    while (existingPointer < existingRows.length) {
-      mergedRows.push(createExtendedExistingRow(existingRows[existingPointer]));
+      // Now look for a matching generated row with the same reference
+      let matchFound = false;
+      let tempGeneratedPointer = generatedPointer;
+
+      // Search through generated rows with the same reference as the existing row
+      while (tempGeneratedPointer < generatedRows.length) {
+        const generatedRow = generatedRows[tempGeneratedPointer];
+        const generatedRef = generatedRow[0] || '';
+
+        if (compareReferences(generatedRef, existingRef) === 0) {
+          // Same reference, check for exact match
+          if (isExactMatch(existingRow, generatedRow)) {
+            // Exact match found! Add all generated rows up to this point
+            while (generatedPointer < tempGeneratedPointer) {
+              const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRows[generatedPointer], ''] : generatedRows[generatedPointer];
+              mergedRows.push(extendedGeneratedRow);
+              generatedPointer++;
+            }
+            // Add the updated generated row with existing data
+            mergedRows.push(updateGeneratedRow(generatedRow, existingRow));
+            generatedPointer++; // Skip the matched generated row
+            matchFound = true;
+            break;
+          }
+          tempGeneratedPointer++;
+        } else if (compareReferences(generatedRef, existingRef) > 0) {
+          // No more rows with this reference
+          break;
+        } else {
+          tempGeneratedPointer++;
+        }
+      }
+
+      if (!matchFound) {
+        // No exact match found, insert the existing row as-is
+        mergedRows.push(createExtendedExistingRow(existingRow));
+      }
+
       existingPointer++;
     }
 
-    // Add remaining generated rows
+    // Add any remaining generated rows
     while (generatedPointer < generatedRows.length) {
-      mergedRows.push(generatedRows[generatedPointer]);
+      const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRows[generatedPointer], ''] : generatedRows[generatedPointer];
+      mergedRows.push(extendedGeneratedRow);
       generatedPointer++;
     }
 
     // Rebuild the TSV content
-    const result = [generatedHeaders.join('\t'), ...mergedRows.map((row) => row.join('\t'))].join('\n');
+    const result = [finalHeaders.join('\t'), ...mergedRows.map((row) => row.join('\t'))].join('\n');
     return result;
   };
 
@@ -765,6 +802,85 @@ function App() {
       // Fallback to normal window opening
       window.open(url, windowName);
     }
+  };
+
+  // Handle row deletion
+  const handleDeleteRow = (rowIndex) => {
+    const rowToDelete = tableRows[rowIndex];
+    setDeletedRow({ row: rowToDelete, index: rowIndex });
+    setTableRows((prev) => prev.filter((_, index) => index !== rowIndex));
+  };
+
+  // Handle undo last deleted row
+  const handleUndo = () => {
+    if (deletedRow) {
+      const newRows = [...tableRows];
+      newRows.splice(deletedRow.index, 0, deletedRow.row);
+      setTableRows(newRows);
+      setDeletedRow(null);
+    }
+  };
+
+  // Handle disambiguation option switching
+  const handleDisambiguationClick = (rowIndex, cellIndex, newOption, newTWLink) => {
+    setTableRows((prev) => {
+      const newRows = [...prev];
+      const row = [...newRows[rowIndex]];
+
+      // Update the disambiguation field
+      row[cellIndex] = newOption;
+
+      // Find and update the TWLink column
+      const twLinkIndex = baseTableData.headers.findIndex((h) => h === 'TWLink');
+      if (twLinkIndex >= 0 && twLinkIndex < row.length) {
+        row[twLinkIndex] = newTWLink;
+      }
+
+      newRows[rowIndex] = row;
+      return newRows;
+    });
+  };
+
+  // Parse disambiguation field to extract clickable options
+  const parseDisambiguationOptions = (disambiguationText, currentRowIndex, currentCellIndex) => {
+    if (!disambiguationText || typeof disambiguationText !== 'string') {
+      return { currentOption: '', clickableOptions: [] };
+    }
+
+    // Match pattern like "manual:option1 (1:other/time, 2:other/age-timeperiod)"
+    const match = disambiguationText.match(/^manual:option(\d+)\s*\(([^)]+)\)$/);
+    if (!match) {
+      return { currentOption: disambiguationText, clickableOptions: [] };
+    }
+
+    const currentOptionNumber = parseInt(match[1]);
+    const optionsText = match[2];
+
+    // Parse individual options like "1:other/time, 2:other/age-timeperiod"
+    const optionMatches = optionsText.matchAll(/(\d+):([^,]+)/g);
+    const clickableOptions = [];
+
+    for (const optionMatch of optionMatches) {
+      const optionNumber = parseInt(optionMatch[1]);
+      const twPath = optionMatch[2].trim();
+
+      if (optionNumber !== currentOptionNumber) {
+        const newDisambiguation = `manual:option${optionNumber} (${optionsText})`;
+        const newTWLink = `rc://*/tw/dict/bible/${twPath}`;
+
+        clickableOptions.push({
+          text: `${optionNumber}:${twPath}`,
+          newDisambiguation,
+          newTWLink,
+          onClick: () => handleDisambiguationClick(currentRowIndex, currentCellIndex, newDisambiguation, newTWLink),
+        });
+      }
+    }
+
+    return {
+      currentOption: `manual:option${currentOptionNumber}`,
+      clickableOptions,
+    };
   };
 
   return (
@@ -978,6 +1094,23 @@ function App() {
                     <ToggleButton value="raw">Raw Text {showOnlySixColumns ? <span>(Read-Only)</span> : <span>(Edit Mode)</span>}</ToggleButton>
                   </ToggleButtonGroup>
 
+                  {viewMode === 'table' && deletedRow && (
+                    <Button
+                      onClick={handleUndo}
+                      startIcon={<UndoIcon />}
+                      variant="outlined"
+                      size="small"
+                      sx={{
+                        color: '#1976d2',
+                        borderColor: '#1976d2',
+                        textTransform: 'none',
+                        '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
+                      }}
+                    >
+                      Undo Delete
+                    </Button>
+                  )}
+
                   <button
                     onClick={() => {
                       if (!twlContent) return;
@@ -1090,6 +1223,7 @@ function App() {
                       <Table stickyHeader size="small">
                         <TableHead>
                           <TableRow>
+                            <TableCell sx={{ width: '50px', textAlign: 'center' }}>Action</TableCell>
                             {tableData.headers.map((header, index) => (
                               <TableCell key={index}>{header}</TableCell>
                             ))}
@@ -1098,11 +1232,26 @@ function App() {
                         <TableBody>
                           {tableData.rows.map((row, rowIndex) => (
                             <TableRow key={rowIndex} hover>
+                              {/* Delete Button Column */}
+                              <TableCell sx={{ width: '50px', textAlign: 'center' }}>
+                                <IconButton
+                                  onClick={() => handleDeleteRow(rowIndex)}
+                                  size="small"
+                                  sx={{
+                                    color: '#d32f2f',
+                                    '&:hover': { backgroundColor: 'rgba(211, 47, 47, 0.04)' },
+                                  }}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </TableCell>
+
                               {row.map((cell, cellIndex) => {
                                 const headerName = tableData.headers[cellIndex];
                                 const isTWLinkColumn = headerName === 'TWLink';
                                 const isReferenceColumn = headerName === 'Reference';
                                 const isContextColumn = headerName === 'Context';
+                                const isDisambiguationColumn = headerName === 'Disambiguation';
 
                                 if (isTWLinkColumn && cell) {
                                   const url = convertRcLinkToUrl(cell);
@@ -1161,6 +1310,50 @@ function App() {
                                         </Tooltip>
                                       </TableCell>
                                     );
+                                  }
+                                }
+
+                                if (isDisambiguationColumn && cell) {
+                                  const { currentOption, clickableOptions } = parseDisambiguationOptions(cell, rowIndex, cellIndex);
+
+                                  if (clickableOptions.length > 0) {
+                                    // Split the text and make non-current options clickable
+                                    const parts = cell.split('(');
+                                    if (parts.length === 2) {
+                                      const prefix = parts[0].trim(); // "manual:option1 "
+                                      const optionsText = parts[1].replace(')', ''); // "1:other/time, 2:other/age-timeperiod"
+
+                                      return (
+                                        <TableCell key={cellIndex}>
+                                          <span>{prefix} (</span>
+                                          {optionsText.split(',').map((option, optIndex) => {
+                                            const trimmedOption = option.trim();
+                                            const clickableOption = clickableOptions.find((opt) => trimmedOption === opt.text);
+
+                                            return (
+                                              <React.Fragment key={optIndex}>
+                                                {optIndex > 0 && ', '}
+                                                {clickableOption ? (
+                                                  <span
+                                                    onClick={clickableOption.onClick}
+                                                    style={{
+                                                      color: '#1976d2',
+                                                      textDecoration: 'underline',
+                                                      cursor: 'pointer',
+                                                    }}
+                                                  >
+                                                    {trimmedOption}
+                                                  </span>
+                                                ) : (
+                                                  <span>{trimmedOption}</span>
+                                                )}
+                                              </React.Fragment>
+                                            );
+                                          })}
+                                          <span>)</span>
+                                        </TableCell>
+                                      );
+                                    }
                                   }
                                 }
 
