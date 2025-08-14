@@ -57,17 +57,38 @@ export const useAppState = () => {
     saveData('selectedBranch', branchName);
   };
 
-  // Handle book selection with persistence
+  // Handle book selection with persistence and content clearing
   const handleBookSelect = (event, value) => {
     if (!value) {
       setSelectedBook(null);
       saveData('selectedBook', '');
+      // Clear all content when book is deselected
+      setUsfmContent('');
+      setTwlContent('');
+      setExistingTwlContent('');
+      setShowExistingTwlTextArea(false);
+      setExistingTwlValid(true);
+      setError('');
       return;
     }
+
+    // Check if book actually changed
+    const bookChanged = !selectedBook || selectedBook.value !== value.value;
 
     console.log('Setting book to:', value);
     setSelectedBook(value);
     saveData('selectedBook', value);
+
+    // Clear all content when book changes (but not on initial load)
+    if (bookChanged && selectedBook !== null) {
+      console.log('Book changed, clearing content');
+      setUsfmContent('');
+      setTwlContent('');
+      setExistingTwlContent('');
+      setShowExistingTwlTextArea(false);
+      setExistingTwlValid(true);
+      setError('');
+    }
   };
 
   return {

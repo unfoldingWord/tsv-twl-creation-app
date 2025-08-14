@@ -14,7 +14,7 @@
  * - Export functionality for processed TWL data
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -104,6 +104,11 @@ function App() {
   // Backup/restore system for undo functionality
   const [backupTwlContent, setBackupTwlContent] = useState(null);
   const hasBackup = Boolean(backupTwlContent);
+
+  // Clear backup when book changes
+  useEffect(() => {
+    setBackupTwlContent(null);
+  }, [selectedBook?.value]); // Only trigger on book value change, not branch
 
   // Download menu state
   const [downloadMenuAnchor, setDownloadMenuAnchor] = useState(null);
