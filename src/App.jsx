@@ -379,7 +379,8 @@ function App() {
     const windowName = 'en_tn_window';
 
     try {
-      const tnWindow = window.open(url, windowName);
+      // const tnWindow = window.open(url, windowName); // Restore if Preview app auto scrolls to a anchor if already open
+      const tnWindow = window.open(url);
       if (tnWindow) {
         tnWindow.focus();
         // Navigate to new anchor after window is ready

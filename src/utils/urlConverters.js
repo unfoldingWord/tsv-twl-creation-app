@@ -38,12 +38,11 @@ export const convertReferenceToTnUrl = (reference, selectedBook) => {
 
   try {
     const bookValue = selectedBook.value; // e.g., "gen"
-    const bookValueUpper = bookValue.toUpperCase(); // "GEN"
 
     // Create the anchor for the specific verse
-    const anchor = `${bookValueUpper}-${reference.replace(':', '-')}`;
+    const anchor = `${bookValue}-${reference.replace(':', '-')}`;
 
-    return `https://git.door43.org/unfoldingWord/en_tn/src/master/tn_${bookValueUpper}.tsv#${anchor}`;
+    return `https://preview.door43.org/u/unfoldingWord/en_tn?book=${bookValue}#${anchor}`;
   } catch (error) {
     console.warn('Error converting reference to TN URL:', reference, error);
     return null;
