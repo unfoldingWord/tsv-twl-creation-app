@@ -3,12 +3,12 @@
  */
 import React from 'react';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Tooltip } from '@mui/material';
-import { Delete as DeleteIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, LinkOff as UnlinkIcon } from '@mui/icons-material';
 import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConverters.js';
 import { truncateContextAroundWord } from '../utils/tsvUtils.js';
 import { parseDisambiguationOptions, renderDisambiguationText } from '../utils/disambiguationUtils.js';
 
-const TWLTable = ({ tableData, selectedBook, onDeleteRow, onDisambiguationClick, onReferenceClick, showOnlySixColumns = false }) => {
+const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambiguationClick, onReferenceClick, showOnlySixColumns = false }) => {
   if (!tableData || !tableData.headers.length) {
     return <div>No data to display</div>;
   }
@@ -46,7 +46,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onDisambiguationClick,
       <Table stickyHeader size="small">
         <TableHead>
           <TableRow>
-            {showActions && <TableCell sx={{ width: '50px', textAlign: 'center' }}>Action</TableCell>}
+            {showActions && <TableCell sx={{ width: '100px', textAlign: 'center' }}>Actions</TableCell>}
             {displayHeaders.map((header, index) => (
               <TableCell key={index}>{header}</TableCell>
             ))}
@@ -55,19 +55,34 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onDisambiguationClick,
         <TableBody>
           {tableData.rows.map((row, rowIndex) => (
             <TableRow key={rowIndex} hover>
-              {/* Delete Button Column - only show when actions are enabled */}
+              {/* Actions Column - only show when actions are enabled */}
               {showActions && (
-                <TableCell sx={{ width: '50px', textAlign: 'center' }}>
-                  <IconButton
-                    onClick={() => onDeleteRow(rowIndex)}
-                    size="small"
-                    sx={{
-                      color: '#d32f2f',
-                      '&:hover': { backgroundColor: 'rgba(211, 47, 47, 0.04)' },
-                    }}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
+                <TableCell sx={{ width: '100px', textAlign: 'center' }}>
+                  <Tooltip title="Delete row">
+                    <IconButton
+                      onClick={() => onDeleteRow(rowIndex)}
+                      size="small"
+                      sx={{
+                        color: '#d32f2f',
+                        '&:hover': { backgroundColor: 'rgba(211, 47, 47, 0.04)' },
+                        mr: 1,
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Unlink word">
+                    <IconButton
+                      onClick={() => onUnlinkRow(rowIndex)}
+                      size="small"
+                      sx={{
+                        color: '#ff9800',
+                        '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.04)' },
+                      }}
+                    >
+                      <UnlinkIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 </TableCell>
               )}
 

@@ -34,7 +34,14 @@ import {
   Menu,
   MenuItem,
 } from '@mui/material';
-import { ContentPaste as PasteIcon, Upload as UploadIcon, CloudDownload as DownloadIcon, Undo as UndoIcon, ArrowDropDown as ArrowDropDownIcon } from '@mui/icons-material';
+import {
+  ContentPaste as PasteIcon,
+  Upload as UploadIcon,
+  CloudDownload as DownloadIcon,
+  Undo as UndoIcon,
+  ArrowDropDown as ArrowDropDownIcon,
+  ManageAccounts as ManageIcon,
+} from '@mui/icons-material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
@@ -43,10 +50,12 @@ import { BibleBookData } from '@common/books';
 import { useAppState } from './hooks/useAppState.js';
 import { useTableData } from './hooks/useTableData.js';
 import TWLTable from './components/TWLTable.jsx';
+import UnlinkedWordsManager from './components/UnlinkedWordsManager.jsx';
 import { fetchUSFMContent, fetchTWLContent } from './services/apiService.js';
 import { mergeExistingTwls } from './services/twlService.js';
 import { isValidTsvStructure, processTsvContent, addGLQuoteColumns, ensureUniqueIds } from './utils/tsvUtils.js';
 import { convertReferenceToTnUrl } from './utils/urlConverters.js';
+import { addUnlinkedWord, filterUnlinkedWords, removeUnlinkedWordByContent, getUnlinkedWords } from './utils/unlinkedWords.js';
 
 // External TWL processing libraries
 import { generateTWLWithUsfm } from 'twl-generator';
@@ -116,6 +125,9 @@ function App() {
   const [downloadMenuAnchor, setDownloadMenuAnchor] = useState(null);
   const downloadMenuOpen = Boolean(downloadMenuAnchor);
 
+  // Unlinked words dialog state
+  const [unlinkedWordsDialogOpen, setUnlinkedWordsDialogOpen] = useState(false);
+
   // Handle download menu open/close
   const handleDownloadMenuClick = (event) => {
     setDownloadMenuAnchor(event.currentTarget);
@@ -123,6 +135,28 @@ function App() {
 
   const handleDownloadMenuClose = () => {
     setDownloadMenuAnchor(null);
+  };
+
+  /**
+   * Handle opening/closing unlinked words dialog
+   */
+  const handleUnlinkedWordsDialogOpen = () => {
+    setUnlinkedWordsDialogOpen(true);
+  };
+
+  const handleUnlinkedWordsDialogClose = () => {
+    setUnlinkedWordsDialogOpen(false);
+  };
+
+  /**
+   * Handle when unlinked words are changed - regenerate current TWL if present
+   */
+  const handleUnlinkedWordsChange = () => {
+    if (twlContent) {
+      // Filter current content with updated unlinked words
+      const filteredContent = filterUnlinkedWords(twlContent);
+      setTwlContent(filteredContent);
+    }
   };
 
   /**
@@ -159,6 +193,78 @@ function App() {
     const newLines = lines.filter((_, index) => index !== rowIndex + 1);
     const newContent = newLines.join('\n');
 
+    setTwlContent(newContent);
+  };
+
+  /**
+   * Handle unlinking a word - removes all rows with matching OrigWords and TWLink
+   */
+  const handleUnlinkRow = (rowIndex) => {
+    if (!twlContent) return;
+
+    // Create backup before making changes
+    createBackup();
+
+    // Parse current content
+    const lines = twlContent.split('\n');
+    if (lines.length === 0) return;
+
+    const headers = lines[0].split('\t');
+    const dataRowIndex = rowIndex + 1; // Add 1 to skip header row
+
+    if (dataRowIndex >= lines.length) return;
+
+    // Parse the target row to get the values we need
+    const row = lines[dataRowIndex].split('\t');
+    const referenceIndex = headers.findIndex((h) => h === 'Reference');
+    const origWordsIndex = headers.findIndex((h) => h === 'OrigWords');
+    const twLinkIndex = headers.findIndex((h) => h === 'TWLink');
+    const glQuoteIndex = headers.findIndex((h) => h === 'GLQuote');
+
+    if (origWordsIndex === -1 || twLinkIndex === -1) {
+      console.error('Cannot unlink: Required columns not found');
+      return;
+    }
+
+    const reference = referenceIndex !== -1 ? row[referenceIndex] || '' : '';
+    const origWords = row[origWordsIndex] || '';
+    const twLink = row[twLinkIndex] || '';
+    const glQuote = glQuoteIndex !== -1 ? row[glQuoteIndex] || '' : '';
+
+    console.log('Unlinking word:', { book: selectedBook?.label, reference, origWords, twLink });
+
+    // Normalize the target text for comparison
+    const normalizedOrigWords = normalizeHebrewText(origWords);
+    const normalizedTWLink = twLink.trim();
+
+    // Add to unlinked words list (but first check if this combination already exists)
+    addUnlinkedWord(selectedBook?.label || 'Unknown', reference, origWords, twLink, glQuote);
+
+    // Remove all rows that match this OrigWords and TWLink combination (using normalized comparison)
+    const filteredLines = [lines[0]]; // Keep header
+    let removedCount = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      const currentRow = lines[i].split('\t');
+      const currentOrigWords = currentRow[origWordsIndex] || '';
+      const currentTWLink = currentRow[twLinkIndex] || '';
+
+      // Normalize current row text for comparison
+      const currentNormalizedOrigWords = normalizeHebrewText(currentOrigWords);
+      const currentNormalizedTWLink = currentTWLink.trim();
+
+      // Keep row if it doesn't match the unlinked combination (using normalized comparison)
+      if (currentNormalizedOrigWords !== normalizedOrigWords || currentNormalizedTWLink !== normalizedTWLink) {
+        filteredLines.push(lines[i]);
+      } else {
+        removedCount++;
+        console.log(`Removing row ${i}: OrigWords="${currentOrigWords}" (normalized: "${currentNormalizedOrigWords}"), TWLink="${currentTWLink}"`);
+      }
+    }
+
+    console.log(`Removed ${removedCount} rows with normalized OrigWords="${normalizedOrigWords}" and TWLink="${normalizedTWLink}"`);
+
+    const newContent = filteredLines.join('\n');
     setTwlContent(newContent);
   };
 
@@ -343,6 +449,10 @@ function App() {
       generatedTwl = ensureUniqueIds(generatedTwl);
       console.log('Generated TWL (with unique IDs):', generatedTwl);
 
+      // Filter out unlinked words
+      generatedTwl = filterUnlinkedWords(generatedTwl);
+      console.log('Generated TWL (after filtering unlinked words):', generatedTwl);
+
       setTwlContent(generatedTwl);
     } catch (err) {
       setError(`Failed to generate TWL: ${err.message}`);
@@ -471,6 +581,29 @@ function App() {
     }
   };
 
+  /**
+   * Calculate the number of data rows (excluding header)
+   */
+  const getTwlRowCount = () => {
+    if (!processedTsvContent) return 0;
+
+    const lines = processedTsvContent.split('\n').filter((line) => line.trim());
+    return Math.max(0, lines.length - 1); // Subtract 1 for header row
+  };
+
+  /**
+   * Normalize Hebrew text for comparison by removing cantillation marks and extra spaces
+   */
+  const normalizeHebrewText = (text) => {
+    if (!text) return '';
+
+    // Remove Hebrew cantillation marks (Unicode range 0591-05BD)
+    // and other Hebrew diacritical marks (05BF-05C7)
+    return text
+      .replace(/[\u0591-\u05BD\u05BF-\u05C7]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -701,6 +834,24 @@ function App() {
                   )}
 
                   <Button
+                    onClick={handleUnlinkedWordsDialogOpen}
+                    startIcon={<ManageIcon />}
+                    variant="outlined"
+                    size="small"
+                    sx={{
+                      color: '#ff9800',
+                      borderColor: '#ff9800',
+                      textTransform: 'none',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 152, 0, 0.04)',
+                        borderColor: '#ff9800',
+                      },
+                    }}
+                  >
+                    Manage Unlinked Words
+                  </Button>
+
+                  <Button
                     onClick={handleDownloadMenuClick}
                     endIcon={<ArrowDropDownIcon />}
                     variant="contained"
@@ -773,6 +924,7 @@ function App() {
                       tableData={tableData}
                       selectedBook={selectedBook}
                       onDeleteRow={handleDeleteRow}
+                      onUnlinkRow={handleUnlinkRow}
                       onDisambiguationClick={handleDisambiguationClick}
                       onReferenceClick={handleReferenceClick}
                       showOnlySixColumns={showOnlySixColumns}
@@ -820,11 +972,23 @@ function App() {
                     </>
                   )}
                 </Box>
+
+                {/* Row Count Display */}
+                {twlContent && (
+                  <Box sx={{ mt: 1, textAlign: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      {getTwlRowCount()} TWL {getTwlRowCount() === 1 ? 'row' : 'rows'}
+                    </Typography>
+                  </Box>
+                )}
               </CardContent>
             </Card>
           )}
         </Box>
       </Box>
+
+      {/* Unlinked Words Manager Dialog */}
+      <UnlinkedWordsManager open={unlinkedWordsDialogOpen} onClose={handleUnlinkedWordsDialogClose} onUnlinkedWordsChange={handleUnlinkedWordsChange} />
     </ThemeProvider>
   );
 }
