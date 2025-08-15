@@ -149,6 +149,15 @@ export const useUnlinkedWords = () => {
     await loadUnlinkedWords();
   };
 
+  const refreshFromLocalStorage = () => {
+    try {
+      const localWords = getUnlinkedWords();
+      setUnlinkedWords(localWords);
+    } catch (error) {
+      console.error('Failed to refresh from local storage:', error);
+    }
+  };
+
   return {
     unlinkedWords,
     loading,
@@ -156,5 +165,6 @@ export const useUnlinkedWords = () => {
     addUnlinkedWord,
     removeUnlinkedWord,
     refreshFromServer,
+    refreshFromLocalStorage,
   };
 };

@@ -29,7 +29,14 @@ import { useUnlinkedWords } from '../hooks/useUnlinkedWords.js';
 import { convertReferenceToUltUrl, convertTwLinkToUrl } from '../utils/urlConverters.js';
 
 const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
-  const { unlinkedWords, loading, error, removeUnlinkedWord, refreshFromServer } = useUnlinkedWords();
+  const { unlinkedWords, loading, error, removeUnlinkedWord, refreshFromServer, refreshFromLocalStorage } = useUnlinkedWords();
+
+  // Refresh unlinked words when dialog opens
+  useEffect(() => {
+    if (open) {
+      refreshFromLocalStorage();
+    }
+  }, [open, refreshFromLocalStorage]);
 
   // Filter out removed items for display
   const activeUnlinkedWords = unlinkedWords.filter((word) => !word.removed);

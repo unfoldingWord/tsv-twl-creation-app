@@ -72,7 +72,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Unlink word (never link this article to this OrigWords again. Can manage and share unlinked words with others via the Unlinked Words Manager above)">
+                  <Tooltip title="Unlink word (i.e. never link this article to this OrigWords again. Can manage via the Unlinked Words Manager above)">
                     <IconButton
                       onClick={() => onUnlinkRow(rowIndex)}
                       size="small"
