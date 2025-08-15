@@ -29,7 +29,7 @@ import { ContentPaste as PasteIcon, Upload as UploadIcon, CloudDownload as Downl
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { BibleBookData } from '@common/books';
-import { generateTWL } from 'twl-linker';
+import { generateTWLWithUusfm } from 'twl-generator';
 import { convertGLQuotes2OLQuotes } from 'tsv-quote-converters';
 
 const theme = createTheme({

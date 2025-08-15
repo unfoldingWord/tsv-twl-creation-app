@@ -159,3 +159,142 @@ export const truncateContextAroundWord = (contextText) => {
 
   return parts.join(' ');
 };
+
+/**
+ * Ensure all IDs in the ID column are unique and properly formatted
+ * ID format: 4 character hex starting with [a-z], remaining 3 chars [a-z0-9]
+ */
+export const ensureUniqueIds = (tsvContent) => {
+  if (!tsvContent || typeof tsvContent !== 'string') {
+    console.error('ensureUniqueIds received invalid input:', typeof tsvContent, tsvContent);
+    return '';
+  }
+
+  const lines = tsvContent.split('\n');
+  if (lines.length === 0) return tsvContent;
+
+  // Parse header row to find ID column index
+  const headers = lines[0].split('\t');
+  const idIndex = headers.findIndex((h) => h === 'ID');
+
+  if (idIndex === -1) {
+    console.warn('Could not find ID column for unique ID validation');
+    return tsvContent;
+  }
+
+  const usedIds = new Set();
+
+  /**
+   * Generate a new unique ID following the format rules
+   */
+  const generateUniqueId = () => {
+    const firstChar = 'abcdefghijklmnopqrstuvwxyz';
+    const otherChars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+
+    let newId;
+    do {
+      // First character from [a-z]
+      const first = firstChar[Math.floor(Math.random() * firstChar.length)];
+      // Next 3 characters from [a-z0-9]
+      const remaining = Array.from({ length: 3 }, () => otherChars[Math.floor(Math.random() * otherChars.length)]).join('');
+
+      newId = first + remaining;
+    } while (usedIds.has(newId));
+
+    return newId;
+  };
+
+  /**
+   * Validate if ID follows the correct format
+   */
+  const isValidIdFormat = (id) => {
+    if (!id || id.length !== 4) return false;
+
+    // First character must be [a-z]
+    if (!/^[a-z]/.test(id[0])) return false;
+
+    // Remaining 3 characters must be [a-z0-9]
+    if (!/^[a-z0-9]{3}$/.test(id.slice(1))) return false;
+
+    return true;
+  };
+
+  // Process each row
+  const newLines = lines.map((line, index) => {
+    if (index === 0) {
+      return line; // Keep header unchanged
+    }
+
+    const columns = line.split('\t');
+    if (columns.length <= idIndex) {
+      return line; // Not enough columns, return as-is
+    }
+
+    const currentId = columns[idIndex];
+
+    // Check if ID needs to be changed (duplicate or invalid format)
+    if (!isValidIdFormat(currentId) || usedIds.has(currentId)) {
+      const newId = generateUniqueId();
+      usedIds.add(newId);
+      columns[idIndex] = newId;
+      console.log(`Changed ID from "${currentId}" to "${newId}" in row ${index}`);
+    } else {
+      usedIds.add(currentId);
+    }
+
+    return columns.join('\t');
+  });
+
+  return newLines.join('\n');
+};
+
+/**
+ * Add GLQuote and GLOccurrence columns to TWL content
+ * GLQuote is copied from OrigWords, GLOccurrence is copied from Occurrence
+ */
+export const addGLQuoteColumns = (tsvContent) => {
+  if (!tsvContent || typeof tsvContent !== 'string') {
+    console.error('addGLQuoteColumns received invalid input:', typeof tsvContent, tsvContent);
+    return '';
+  }
+
+  const lines = tsvContent.split('\n');
+  if (lines.length === 0) return tsvContent;
+
+  // Parse header row to find column indices
+  const headers = lines[0].split('\t');
+  const origWordsIndex = headers.findIndex((h) => h === 'OrigWords');
+  const occurrenceIndex = headers.findIndex((h) => h === 'Occurrence');
+  const twLinkIndex = headers.findIndex((h) => h === 'TWLink');
+
+  if (origWordsIndex === -1 || occurrenceIndex === -1 || twLinkIndex === -1) {
+    console.warn('Could not find required columns for GLQuote processing');
+    return tsvContent;
+  }
+
+  // Create new headers with GLQuote and GLOccurrence inserted after TWLink
+  const newHeaders = [...headers];
+  newHeaders.splice(twLinkIndex + 1, 0, 'GLQuote', 'GLOccurrence');
+
+  // Process each row
+  const newLines = lines.map((line, index) => {
+    if (index === 0) {
+      return newHeaders.join('\t');
+    }
+
+    const columns = line.split('\t');
+    if (columns.length <= Math.max(origWordsIndex, occurrenceIndex, twLinkIndex)) {
+      return line; // Not enough columns, return as-is
+    }
+
+    // Insert GLQuote and GLOccurrence values after TWLink
+    const newColumns = [...columns];
+    const glQuoteValue = columns[origWordsIndex] || '';
+    const glOccurrenceValue = columns[occurrenceIndex] || '';
+
+    newColumns.splice(twLinkIndex + 1, 0, glQuoteValue, glOccurrenceValue);
+    return newColumns.join('\t');
+  });
+
+  return newLines.join('\n');
+};

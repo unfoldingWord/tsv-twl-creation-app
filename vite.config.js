@@ -9,4 +9,10 @@ export default defineConfig({
       '@common': path.resolve(__dirname, './src/common'),
     },
   },
+  define: {
+    global: 'globalThis',
+  },
+  optimizeDeps: {
+    exclude: ['fsevents']
+  }
 });

@@ -144,33 +144,48 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onDisambiguationClick,
 
                 // Disambiguation column with clickable options (only when actions are enabled)
                 if (isDisambiguationColumn && cell && showActions) {
-                  const { clickableOptions } = parseDisambiguationOptions(cell, (newDisambiguation, newTWLink) =>
-                    onDisambiguationClick(rowIndex, cellIndex, newDisambiguation, newTWLink)
-                  );
+                  // Find the TWLink column value for this row
+                  const twLinkIndex = displayHeaders.findIndex((h) => h === 'TWLink');
+                  const currentTWLink = twLinkIndex !== -1 ? (showOnlySixColumns ? row.slice(0, 6) : row)[twLinkIndex] : '';
 
-                  if (clickableOptions.length > 0) {
-                    const elements = renderDisambiguationText(cell, clickableOptions);
+                  const parseResult = parseDisambiguationOptions(cell, currentTWLink, (newDisambiguation, newTWLink) => {
+                    onDisambiguationClick(rowIndex, cellIndex, newDisambiguation, newTWLink);
+                  });
+
+                  if (parseResult.clickableOptions.length > 0) {
+                    const elements = renderDisambiguationText(cell, parseResult);
 
                     return (
                       <TableCell key={cellIndex}>
-                        {elements.map((element, elemIndex) => (
-                          <React.Fragment key={elemIndex}>
-                            {element.type === 'clickable' ? (
-                              <span
-                                onClick={element.onClick}
-                                style={{
-                                  color: '#1976d2',
-                                  textDecoration: 'underline',
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                {element.content}
-                              </span>
-                            ) : (
-                              <span>{element.content}</span>
-                            )}
-                          </React.Fragment>
-                        ))}
+                        {elements.map((element, elemIndex) => {
+                          if (element.type === 'clickable') {
+                            return (
+                              <React.Fragment key={elemIndex}>
+                                <span
+                                  onClick={async (e) => {
+                                    // Change cursor to wait on click
+                                    e.target.style.cursor = 'wait';
+                                    await new Promise((resolve) => setTimeout(resolve, 100));
+                                    element.onClick();
+                                  }}
+                                  style={{
+                                    color: '#1976d2',
+                                    textDecoration: 'underline',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  {element.content}
+                                </span>
+                              </React.Fragment>
+                            );
+                          } else {
+                            return (
+                              <React.Fragment key={elemIndex}>
+                                <span style={element.isSelected ? { fontWeight: 'bold', color: '#333' } : {}}>{element.content}</span>
+                              </React.Fragment>
+                            );
+                          }
+                        })}
                       </TableCell>
                     );
                   }

@@ -4,86 +4,105 @@
 
 /**
  * Parse disambiguation field to extract clickable options
- * Format: "manual:option1 (1:other/time, 2:other/age-timeperiod)"
+ * New format: "(kt/god, kt/falsegod)"
+ * Determines which option is selected based on the current TWLink
  */
-export const parseDisambiguationOptions = (disambiguationText, onOptionClick) => {
+export const parseDisambiguationOptions = (disambiguationText, currentTWLink, onOptionClick) => {
   if (!disambiguationText || typeof disambiguationText !== 'string') {
     return { currentOption: '', clickableOptions: [] };
   }
 
-  // Match pattern like "manual:option1 (1:other/time, 2:other/age-timeperiod)"
-  const match = disambiguationText.match(/^manual:option(\d+)\s*\(([^)]+)\)$/);
+  // Match pattern like "(kt/god, kt/falsegod)" or "(other/time, other/age-timeperiod)"
+  const match = disambiguationText.match(/^\(([^)]+)\)$/);
   if (!match) {
     return { currentOption: disambiguationText, clickableOptions: [] };
   }
 
-  const currentOptionNumber = parseInt(match[1]);
-  const optionsText = match[2];
+  const optionsText = match[1];
+  const options = optionsText.split(',').map(opt => opt.trim());
 
-  // Parse individual options like "1:other/time, 2:other/age-timeperiod"
-  const optionMatches = optionsText.matchAll(/(\d+):([^,]+)/g);
-  const clickableOptions = [];
+  if (options.length < 2) {
+    return { currentOption: disambiguationText, clickableOptions: [] };
+  }
 
-  for (const optionMatch of optionMatches) {
-    const optionNumber = parseInt(optionMatch[1]);
-    const twPath = optionMatch[2].trim();
-
-    if (optionNumber !== currentOptionNumber) {
-      const newDisambiguation = `manual:option${optionNumber} (${optionsText})`;
-      const newTWLink = `rc://*/tw/dict/bible/${twPath}`;
-
-      clickableOptions.push({
-        text: `${optionNumber}:${twPath}`,
-        newDisambiguation,
-        newTWLink,
-        onClick: () => onOptionClick(newDisambiguation, newTWLink)
-      });
+  // Determine which option is currently selected by examining the TWLink
+  let currentOptionIndex = 0;
+  if (currentTWLink) {
+    // TWLink format: "rc://*/tw/dict/bible/kt/god"
+    const twLinkMatch = currentTWLink.match(/\/([^\/]+\/[^\/]+)$/);
+    if (twLinkMatch) {
+      const currentPath = twLinkMatch[1]; // e.g., "kt/god"
+      const foundIndex = options.findIndex(opt => opt === currentPath);
+      if (foundIndex !== -1) {
+        currentOptionIndex = foundIndex;
+      }
     }
   }
 
+  // Create clickable options for all non-selected options
+  const clickableOptions = [];
+  options.forEach((option, index) => {
+    if (index !== currentOptionIndex) {
+      const newTWLink = `rc://*/tw/dict/bible/${option}`;
+
+      clickableOptions.push({
+        text: option,
+        path: option,
+        newDisambiguation: disambiguationText, // Keep same disambiguation text
+        newTWLink,
+        onClick: () => onOptionClick(disambiguationText, newTWLink)
+      });
+    }
+  });
+
   return {
-    currentOption: `manual:option${currentOptionNumber}`,
-    clickableOptions
+    currentOption: options[currentOptionIndex],
+    clickableOptions,
+    allOptions: options,
+    selectedIndex: currentOptionIndex
   };
 };
 
 /**
  * Render disambiguation text with clickable options
+ * New format: "(kt/god, kt/falsegod)" where one is selected and others are clickable
  * Returns an array of text fragments and clickable elements
  */
-export const renderDisambiguationText = (disambiguationText, clickableOptions) => {
-  if (clickableOptions.length === 0) {
+export const renderDisambiguationText = (disambiguationText, parseResult) => {
+  if (!parseResult || parseResult.clickableOptions.length === 0) {
     return [{ type: 'text', content: disambiguationText }];
   }
 
-  // Split the text and identify clickable parts
-  const parts = disambiguationText.split('(');
-  if (parts.length !== 2) {
-    return [{ type: 'text', content: disambiguationText }];
-  }
+  const { allOptions, selectedIndex, clickableOptions } = parseResult;
 
-  const prefix = parts[0].trim(); // "manual:option1 "
-  const optionsText = parts[1].replace(')', ''); // "1:other/time, 2:other/age-timeperiod"
-
+  // Build the rendered elements: (option1, option2, option3)
   const elements = [];
-  elements.push({ type: 'text', content: `${prefix} (` });
+  elements.push({ type: 'text', content: '(' });
 
-  optionsText.split(',').forEach((option, optIndex) => {
-    const trimmedOption = option.trim();
-    const clickableOption = clickableOptions.find(opt => trimmedOption === opt.text);
-
-    if (optIndex > 0) {
+  allOptions.forEach((option, index) => {
+    if (index > 0) {
       elements.push({ type: 'text', content: ', ' });
     }
 
-    if (clickableOption) {
+    if (index === selectedIndex) {
+      // This is the selected option - render as plain text (bold or different style)
       elements.push({
-        type: 'clickable',
-        content: trimmedOption,
-        onClick: clickableOption.onClick
+        type: 'text',
+        content: option,
+        isSelected: true // Flag to allow custom styling
       });
     } else {
-      elements.push({ type: 'text', content: trimmedOption });
+      // This is a clickable option
+      const clickableOption = clickableOptions.find(opt => opt.path === option);
+      if (clickableOption) {
+        elements.push({
+          type: 'clickable',
+          content: option,
+          onClick: clickableOption.onClick
+        });
+      } else {
+        elements.push({ type: 'text', content: option });
+      }
     }
   });
 

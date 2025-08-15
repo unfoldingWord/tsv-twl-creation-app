@@ -7,7 +7,7 @@ A React web application for creating and managing Translation Word Lists (TWL) f
 This app helps translators and editors create Translation Word Lists by:
 
 1. **Loading USFM content** from various sources (paste, upload, or fetch from DCS)
-2. **Generating TWL entries** automatically from USFM using the `twl-linker` library
+2. **Generating TWL entries** automatically from USFM using the `twl-generator` library
 3. **Merging with existing TWL files** to preserve manual edits and additions
 4. **Interactive table editing** with row deletion, undo, and disambiguation options
 5. **Exporting processed TWL files** in standard TSV format
@@ -108,7 +108,7 @@ Key architectural highlights:
 - **Build Tool**: Vite for fast development and building
 - **State Management**: Custom hooks with React's built-in state
 - **External Libraries**:
-  - `twl-linker` for TWL generation from USFM
+  - `twl-generator` for TWL generation from USFM
   - `tsv-quote-converters` for quote processing
 - **API Integration**: Door43 Content Service (DCS) for content fetching
 - **Deployment**: Netlify-ready with build configurations

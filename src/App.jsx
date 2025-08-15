@@ -45,12 +45,12 @@ import { useTableData } from './hooks/useTableData.js';
 import TWLTable from './components/TWLTable.jsx';
 import { fetchUSFMContent, fetchTWLContent } from './services/apiService.js';
 import { mergeExistingTwls } from './services/twlService.js';
-import { isValidTsvStructure, processTsvContent } from './utils/tsvUtils.js';
+import { isValidTsvStructure, processTsvContent, addGLQuoteColumns, ensureUniqueIds } from './utils/tsvUtils.js';
 import { convertReferenceToTnUrl } from './utils/urlConverters.js';
 
 // External TWL processing libraries
-import { generateTWL } from 'twl-linker';
-import { convertGLQuotes2OLQuotes } from 'tsv-quote-converters';
+import { generateTWLWithUsfm } from 'twl-generator';
+import { convertGLQuotes2OLQuotes, addGLQuoteCols } from 'tsv-quote-converters';
 
 // Material-UI theme configuration
 const theme = createTheme({
@@ -74,6 +74,7 @@ function App() {
     usfmContent,
     twlContent,
     existingTwlContent,
+    existingTwlContentWithGLQuotes,
     loading,
     error,
     showOnlySixColumns,
@@ -84,6 +85,7 @@ function App() {
     setUsfmContent,
     setTwlContent,
     setExistingTwlContent,
+    setExistingTwlContentWithGLQuotes,
     setLoading,
     setError,
     setShowOnlySixColumns,
@@ -273,12 +275,13 @@ function App() {
       }
 
       // Generate TWL using external library
-      let generatedTwl = generateTWL(usfmToUse);
+      let generatedTwl = await generateTWLWithUsfm(selectedBook.value, usfmToUse);
+      console.log('Generated TWL (initial):', generatedTwl);
 
       // Add GLQuote and GLOccurrence columns
       generatedTwl = addGLQuoteColumns(generatedTwl);
+      console.log('Generated TWL (with GLQuote columns):', generatedTwl);
 
-      // Convert GL quotes to OL quotes using external library
       const params = {
         bibleLinks: [`unfoldingWord/en_ult/master`],
         bookCode: selectedBook.value,
@@ -291,12 +294,54 @@ function App() {
         throw new Error(`convertGLQuotes2OLQuotes failed: ${JSON.stringify(convertResponse)}`);
       }
 
-      generatedTwl = convertResponse?.output;
+      generatedTwl = convertResponse.output;
+
+      console.log('Generated TWL (after GL2OL conversion):', generatedTwl);
 
       // Merge with existing TWL if provided
+
+      let existingTWLs = '';
       if (existingTwlContent.trim()) {
-        generatedTwl = mergeExistingTwls(generatedTwl, existingTwlContent);
+        if (!existingTwlContentWithGLQuotes) {
+          const params = {
+            bibleLinks: ['unfoldingWord/en_ult/master'],
+            bookCode: selectedBook.value,
+            tsvContent: existingTwlContent.trim(),
+            trySeparatorsAndOccurrences: true,
+            quiet: false,
+          };
+
+          const addGLQuoteColsResult = await addGLQuoteCols(params);
+
+          if (!addGLQuoteColsResult || typeof addGLQuoteColsResult !== 'object' || !addGLQuoteColsResult.output) {
+            throw new Error(`addGLQuoteCols failed: ${JSON.stringify(addGLQuoteColsResult)}`);
+          }
+
+          existingTWLs = addGLQuoteColsResult.output;
+          // Rearrange columns: move columns 6 and 7 to the end, switching with column 8
+          const lines = existingTWLs.split('\n');
+          existingTWLs = lines
+            .map((line) => {
+              if (!line.trim()) return line;
+              const columns = line.split('\t');
+              if (columns.length >= 8) {
+                // Move columns 6,7 to end and column 8 to position 6
+                const [col1, col2, col3, col4, col5, col6, col7, col8, ...rest] = columns;
+                return [col1, col2, col3, col4, col5, col8, col6, col7, ...rest].join('\t');
+              }
+              return line;
+            })
+            .join('\n');
+          setExistingTwlContentWithGLQuotes(existingTWLs);
+        } else {
+          existingTWLs = existingTwlContentWithGLQuotes;
+        }
+        generatedTwl = mergeExistingTwls(generatedTwl, existingTWLs);
       }
+
+      // Ensure all IDs are unique and properly formatted
+      generatedTwl = ensureUniqueIds(generatedTwl);
+      console.log('Generated TWL (with unique IDs):', generatedTwl);
 
       setTwlContent(generatedTwl);
     } catch (err) {
@@ -305,56 +350,6 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
-
-  /**
-   * Add GLQuote and GLOccurrence columns to TWL content
-   */
-  const addGLQuoteColumns = (tsvContent) => {
-    if (!tsvContent || typeof tsvContent !== 'string') {
-      console.error('addGLQuoteColumns received invalid input:', typeof tsvContent, tsvContent);
-      return '';
-    }
-
-    const lines = tsvContent.split('\n');
-    if (lines.length === 0) return tsvContent;
-
-    // Parse header row to find column indices
-    const headers = lines[0].split('\t');
-    const origWordsIndex = headers.findIndex((h) => h === 'OrigWords');
-    const occurrenceIndex = headers.findIndex((h) => h === 'Occurrence');
-    const twLinkIndex = headers.findIndex((h) => h === 'TWLink');
-
-    if (origWordsIndex === -1 || occurrenceIndex === -1 || twLinkIndex === -1) {
-      console.warn('Could not find required columns for GLQuote processing');
-      return tsvContent;
-    }
-
-    // Create new headers with GLQuote and GLOccurrence inserted after TWLink
-    const newHeaders = [...headers];
-    newHeaders.splice(twLinkIndex + 1, 0, 'GLQuote', 'GLOccurrence');
-
-    // Process each row
-    const newLines = lines.map((line, index) => {
-      if (index === 0) {
-        return newHeaders.join('\t');
-      }
-
-      const columns = line.split('\t');
-      if (columns.length <= Math.max(origWordsIndex, occurrenceIndex, twLinkIndex)) {
-        return line; // Not enough columns, return as-is
-      }
-
-      // Insert GLQuote and GLOccurrence values after TWLink
-      const newColumns = [...columns];
-      const glQuoteValue = columns[origWordsIndex] || '';
-      const glOccurrenceValue = columns[occurrenceIndex] || '';
-
-      newColumns.splice(twLinkIndex + 1, 0, glQuoteValue, glOccurrenceValue);
-      return newColumns.join('\t');
-    });
-
-    return newLines.join('\n');
   };
 
   /**
@@ -590,7 +585,7 @@ function App() {
                   }}
                   startIcon={<DownloadIcon />}
                   variant="text"
-                  disabled={!selectedBook}
+                  disabled={!selectedBook || selectedBook === null}
                   sx={{
                     color: selectedBook ? '#1976d2' : 'rgba(0, 0, 0, 0.26)',
                     textTransform: 'none',
@@ -636,7 +631,7 @@ function App() {
                 <Button
                   onClick={handleGenerateTwl}
                   variant="contained"
-                  disabled={!selectedBook || loading || (existingTwlContent.trim() && !existingTwlValid)}
+                  disabled={!selectedBook || loading || (existingTwlContent.trim() !== '' && !existingTwlValid)}
                   sx={{
                     backgroundColor: '#1976d2',
                     '&:hover': { backgroundColor: '#1565c0' },
@@ -710,7 +705,7 @@ function App() {
                     endIcon={<ArrowDropDownIcon />}
                     variant="contained"
                     size="small"
-                    disabled={!twlContent}
+                    disabled={!twlContent || twlContent === ''}
                     sx={{
                       bgcolor: '#38ADDF',
                       '&:hover': { bgcolor: '#2e8bb8' },
@@ -740,7 +735,7 @@ function App() {
                     onClick={handleCopyToClipboard}
                     variant="outlined"
                     size="small"
-                    disabled={!twlContent}
+                    disabled={!twlContent || twlContent === ''}
                     sx={{
                       color: '#1976d2',
                       borderColor: '#1976d2',
@@ -758,7 +753,7 @@ function App() {
                     rel="noopener noreferrer"
                     variant="outlined"
                     size="small"
-                    disabled={!selectedBook}
+                    disabled={!selectedBook || selectedBook === null}
                     sx={{
                       color: '#1976d2',
                       borderColor: '#1976d2',

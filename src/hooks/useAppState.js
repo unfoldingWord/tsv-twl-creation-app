@@ -21,6 +21,7 @@ export const useAppState = () => {
   const [usfmContent, setUsfmContent] = useState('');
   const [twlContent, setTwlContent] = useState('');
   const [existingTwlContent, setExistingTwlContent] = useState('');
+  const [existingTwlContentWithGlQuotes, setExistingTwlContentWithGLQuotes] = useState('');
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -66,6 +67,7 @@ export const useAppState = () => {
       setUsfmContent('');
       setTwlContent('');
       setExistingTwlContent('');
+      setExistingTwlContentWithGLQuotes('');
       setShowExistingTwlTextArea(false);
       setExistingTwlValid(true);
       setError('');
@@ -101,6 +103,7 @@ export const useAppState = () => {
     usfmContent,
     twlContent,
     existingTwlContent,
+    existingTwlContentWithGlQuotes,
     loading,
     error,
     showOnlySixColumns,
@@ -112,6 +115,7 @@ export const useAppState = () => {
     setUsfmContent,
     setTwlContent,
     setExistingTwlContent,
+    setExistingTwlContentWithGLQuotes,
     setLoading,
     setError,
     setShowOnlySixColumns,
