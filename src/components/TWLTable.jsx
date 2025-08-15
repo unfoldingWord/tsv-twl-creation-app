@@ -3,7 +3,8 @@
  */
 import React from 'react';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Tooltip } from '@mui/material';
-import { Delete as DeleteIcon, LinkOff as UnlinkIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon } from '@mui/icons-material';
+import { RxLinkBreak2 as UnlinkIcon } from 'react-icons/rx';
 import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConverters.js';
 import { truncateContextAroundWord } from '../utils/tsvUtils.js';
 import { parseDisambiguationOptions, renderDisambiguationText } from '../utils/disambiguationUtils.js';
@@ -71,12 +72,12 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Unlink word">
+                  <Tooltip title="Unlink word (never link this article to this OrigWords again. Can manage and share unlinked words with others via the Unlinked Words Manager above)">
                     <IconButton
                       onClick={() => onUnlinkRow(rowIndex)}
                       size="small"
                       sx={{
-                        color: '#ff9800',
+                        color: 'red',
                         '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.04)' },
                       }}
                     >
