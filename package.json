@@ -17,7 +17,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsv-quote-converters": "^1.1.9",
-    "twl-generator": "^1.1.5"
+    "twl-generator": "^1.2.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",
