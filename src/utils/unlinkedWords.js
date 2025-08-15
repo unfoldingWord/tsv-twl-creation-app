@@ -110,13 +110,72 @@ export const isWordUnlinked = (origWords, twLink) => {
   const normalizedTWLink = twLink.trim();
 
   return unlinkedWords.some(
-    item => normalizeHebrewText(item.origWords) === normalizedOrigWords &&
+    item => !item.removed && // Only consider non-removed items
+      normalizeHebrewText(item.origWords) === normalizedOrigWords &&
       item.twLink.trim() === normalizedTWLink
   );
 };
 
 /**
- * Filter out unlinked words from TSV content
+ * Filter TSV content based on provided unlinked words data (respects 'removed' status)
+ */
+export const filterUnlinkedWordsWithData = (tsvContent, unlinkedWordsData) => {
+  if (!tsvContent || typeof tsvContent !== 'string') {
+    return tsvContent;
+  }
+
+  // Only use non-removed unlinked words for filtering
+  const activeUnlinkedWords = unlinkedWordsData.filter(word => !word.removed);
+
+  if (activeUnlinkedWords.length === 0) {
+    return tsvContent;
+  }
+
+  const lines = tsvContent.split('\n');
+  if (lines.length === 0) return tsvContent;
+
+  const headers = lines[0].split('\t');
+  const origWordsIndex = headers.findIndex(h => h === 'OrigWords');
+  const twLinkIndex = headers.findIndex(h => h === 'TWLink');
+
+  if (origWordsIndex === -1 || twLinkIndex === -1) {
+    return tsvContent; // Can't filter without required columns
+  }
+
+  // Keep header and filter data rows
+  const filteredLines = [lines[0]]; // Keep header
+
+  for (let i = 1; i < lines.length; i++) {
+    const columns = lines[i].split('\t');
+    if (columns.length > Math.max(origWordsIndex, twLinkIndex)) {
+      const origWords = columns[origWordsIndex];
+      const twLink = columns[twLinkIndex];
+
+      // Check if this combination should be filtered out
+      const shouldFilter = activeUnlinkedWords.some(unlinkedWord => {
+        const normalizedOrigWords = normalizeHebrewText(origWords);
+        const normalizedUnlinkedOrigWords = normalizeHebrewText(unlinkedWord.origWords);
+        const normalizedTWLink = twLink.trim();
+        const normalizedUnlinkedTWLink = unlinkedWord.twLink.trim();
+
+        return normalizedOrigWords === normalizedUnlinkedOrigWords &&
+          normalizedTWLink === normalizedUnlinkedTWLink;
+      });
+
+      if (!shouldFilter) {
+        filteredLines.push(lines[i]);
+      }
+    } else {
+      // Keep lines that don't have enough columns (probably empty lines)
+      filteredLines.push(lines[i]);
+    }
+  }
+
+  return filteredLines.join('\n');
+};
+
+/**
+ * Filter TSV content based on local unlinked words data (legacy function)
  */
 export const filterUnlinkedWords = (tsvContent) => {
   if (!tsvContent || typeof tsvContent !== 'string') {
@@ -124,7 +183,11 @@ export const filterUnlinkedWords = (tsvContent) => {
   }
 
   const unlinkedWords = getUnlinkedWords();
-  if (unlinkedWords.length === 0) {
+
+  // Only use non-removed unlinked words for filtering
+  const activeUnlinkedWords = unlinkedWords.filter(word => !word.removed);
+
+  if (activeUnlinkedWords.length === 0) {
     return tsvContent;
   }
 

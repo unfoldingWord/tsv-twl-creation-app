@@ -23,6 +23,43 @@ export const useAppState = () => {
   const [existingTwlContent, setExistingTwlContent] = useState('');
   const [existingTwlContentWithGlQuotes, setExistingTwlContentWithGLQuotes] = useState('');
 
+  // Load saved TWL content on mount if it matches the current book
+  useEffect(() => {
+    console.log('useAppState: Checking for saved TWL content...');
+    console.log('selectedBook:', selectedBook);
+
+    try {
+      const savedTwl = loadData('generatedTwlContent');
+      const savedTwlBook = loadData('generatedTwlBook');
+
+      console.log('savedTwl exists:', !!savedTwl);
+      console.log('savedTwlBook:', savedTwlBook);
+      console.log('Current book value:', selectedBook?.value);
+
+      // Only load if it's for the same book as currently selected
+      if (savedTwl && savedTwlBook && selectedBook && savedTwlBook === selectedBook.value) {
+        console.log('Loading saved TWL content for book:', selectedBook.value);
+        setTwlContent(savedTwl);
+      } else {
+        console.log('Not loading TWL content - conditions not met');
+      }
+    } catch (error) {
+      console.warn('Error loading saved TWL content:', error);
+    }
+  }, [selectedBook]); // Run when selectedBook changes
+
+  // Debug: Log initial state on mount
+  useEffect(() => {
+    console.log('useAppState: Component mounted');
+    console.log('Initial savedBook:', savedBook);
+    console.log('Initial selectedBook:', selectedBook);
+    console.log('localStorage check:', {
+      generatedTwlContent: !!loadData('generatedTwlContent'),
+      generatedTwlBook: loadData('generatedTwlBook'),
+      selectedBook: loadData('selectedBook', true)
+    });
+  }, []); // Run only on mount
+
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -50,6 +87,32 @@ export const useAppState = () => {
     loadBranches();
   }, []);
 
+  // Save TWL content manually when specific actions occur
+  // Note: We don't use useEffect here to avoid saving on every change
+  // Instead, we save explicitly from App.jsx when user actions modify content
+
+  /**
+   * Manually save TWL content to localStorage
+   * Used when specific user actions modify the content
+   */
+  const saveTwlContent = (contentToSave = null) => {
+    const contentToUse = contentToSave || twlContent;
+    console.log('saveTwlContent called');
+    console.log('contentToSave param:', !!contentToSave);
+    console.log('twlContent exists:', !!twlContent);
+    console.log('contentToUse exists:', !!contentToUse);
+    console.log('selectedBook:', selectedBook);
+
+    if (contentToUse && selectedBook) {
+      saveData('generatedTwlContent', contentToUse);
+      saveData('generatedTwlBook', selectedBook.value);
+      console.log('Manually saved TWL content for book:', selectedBook.value);
+      console.log('Saved content length:', contentToUse.length);
+    } else {
+      console.log('Not saving - missing content or selectedBook');
+    }
+  };
+
   // Handle branch selection with persistence
   const handleBranchSelect = (event, value) => {
     const branchName = value?.value || 'master';
@@ -71,6 +134,9 @@ export const useAppState = () => {
       setShowExistingTwlTextArea(false);
       setExistingTwlValid(true);
       setError('');
+      // Clear saved TWL content
+      saveData('generatedTwlContent', '');
+      saveData('generatedTwlBook', '');
       return;
     }
 
@@ -90,6 +156,9 @@ export const useAppState = () => {
       setShowExistingTwlTextArea(false);
       setExistingTwlValid(true);
       setError('');
+      // Clear saved TWL content
+      saveData('generatedTwlContent', '');
+      saveData('generatedTwlBook', '');
     }
   };
 
@@ -125,6 +194,9 @@ export const useAppState = () => {
 
     // Handlers
     handleBranchSelect,
-    handleBookSelect
+    handleBookSelect,
+
+    // Utilities
+    saveTwlContent
   };
 };

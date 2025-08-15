@@ -19,30 +19,34 @@ import {
   Tooltip,
   Typography,
   Box,
+  CircularProgress,
+  Alert,
+  Link,
 } from '@mui/material';
 import { Delete as DeleteIcon, Download as DownloadIcon, Upload as UploadIcon } from '@mui/icons-material';
-import { getUnlinkedWords, removeUnlinkedWord, importUnlinkedWords } from '../utils/unlinkedWords.js';
+import { importUnlinkedWords } from '../utils/unlinkedWords.js';
+import { useUnlinkedWords } from '../hooks/useUnlinkedWords.js';
+import { convertReferenceToUltUrl, convertTwLinkToUrl } from '../utils/urlConverters.js';
 
 const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
-  const [unlinkedWords, setUnlinkedWords] = useState([]);
+  const { unlinkedWords, loading, error, removeUnlinkedWord, refreshFromServer } = useUnlinkedWords();
 
-  // Load unlinked words when dialog opens
-  useEffect(() => {
-    if (open) {
-      setUnlinkedWords(getUnlinkedWords());
-    }
-  }, [open]);
+  // Filter out removed items for display
+  const activeUnlinkedWords = unlinkedWords.filter((word) => !word.removed);
 
   /**
    * Handle removing an unlinked word
    */
-  const handleRemoveWord = (id) => {
-    const updatedWords = removeUnlinkedWord(id);
-    setUnlinkedWords(updatedWords);
+  const handleRemoveWord = async (origWords, twLink) => {
+    try {
+      await removeUnlinkedWord(origWords, twLink);
 
-    // Notify parent that unlinked words changed
-    if (onUnlinkedWordsChange) {
-      onUnlinkedWordsChange();
+      // Notify parent that unlinked words changed
+      if (onUnlinkedWordsChange) {
+        onUnlinkedWordsChange();
+      }
+    } catch (error) {
+      console.error('Failed to remove unlinked word:', error);
     }
   };
 
@@ -50,13 +54,13 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
    * Handle exporting unlinked words to JSON
    */
   const handleExport = () => {
-    if (unlinkedWords.length === 0) {
+    if (activeUnlinkedWords.length === 0) {
       alert('No unlinked words to export.');
       return;
     }
 
-    // Create export data with clean structure
-    const exportData = unlinkedWords.map((word) => ({
+    // Create export data with clean structure (only export non-removed words)
+    const exportData = activeUnlinkedWords.map((word) => ({
       book: word.book,
       reference: word.reference,
       origWords: word.origWords,
@@ -136,7 +140,20 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
       </DialogTitle>
 
       <DialogContent>
-        {unlinkedWords.length === 0 ? (
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
+            <CircularProgress />
+            <Typography variant="body2" sx={{ ml: 2 }}>
+              Loading unlinked words...
+            </Typography>
+          </Box>
+        ) : error ? (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        ) : null}
+
+        {!loading && activeUnlinkedWords.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <Typography variant="body1" color="text.secondary">
               No unlinked words found.
@@ -160,12 +177,12 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {unlinkedWords.map((word) => (
+                {activeUnlinkedWords.map((word) => (
                   <TableRow key={word.id} hover>
                     <TableCell sx={{ textAlign: 'center' }}>
                       <Tooltip title="Re-enable linking for this word">
                         <IconButton
-                          onClick={() => handleRemoveWord(word.id)}
+                          onClick={() => handleRemoveWord(word.origWords, word.twLink)}
                           size="small"
                           sx={{
                             color: '#4caf50',
@@ -191,7 +208,25 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
                         fontSize: '12px',
                       }}
                     >
-                      {word.reference}
+                      {(() => {
+                        const ultUrl = convertReferenceToUltUrl(word.reference, word.book);
+                        return ultUrl ? (
+                          <Link
+                            href={ultUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            sx={{
+                              color: '#1976d2',
+                              textDecoration: 'none',
+                              '&:hover': { textDecoration: 'underline' },
+                            }}
+                          >
+                            {word.reference}
+                          </Link>
+                        ) : (
+                          word.reference
+                        );
+                      })()}
                     </TableCell>
                     <TableCell
                       sx={{
@@ -207,7 +242,25 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
                         fontSize: '12px',
                       }}
                     >
-                      {word.twLink}
+                      {(() => {
+                        const twUrl = convertTwLinkToUrl(word.twLink);
+                        return twUrl ? (
+                          <Link
+                            href={twUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            sx={{
+                              color: '#1976d2',
+                              textDecoration: 'none',
+                              '&:hover': { textDecoration: 'underline' },
+                            }}
+                          >
+                            {word.twLink}
+                          </Link>
+                        ) : (
+                          word.twLink
+                        );
+                      })()}
                     </TableCell>
                     <TableCell
                       sx={{
@@ -233,7 +286,7 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
             onClick={handleExport}
             startIcon={<DownloadIcon />}
             variant="outlined"
-            disabled={unlinkedWords.length === 0}
+            disabled={activeUnlinkedWords.length === 0}
             sx={{
               color: '#1976d2',
               borderColor: '#1976d2',

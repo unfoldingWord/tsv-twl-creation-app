@@ -39,6 +39,7 @@ import {
   Upload as UploadIcon,
   CloudDownload as DownloadIcon,
   Undo as UndoIcon,
+  Save as SaveIcon,
   ArrowDropDown as ArrowDropDownIcon,
   ManageAccounts as ManageIcon,
 } from '@mui/icons-material';
@@ -55,7 +56,8 @@ import { fetchUSFMContent, fetchTWLContent } from './services/apiService.js';
 import { mergeExistingTwls } from './services/twlService.js';
 import { isValidTsvStructure, processTsvContent, addGLQuoteColumns, ensureUniqueIds } from './utils/tsvUtils.js';
 import { convertReferenceToTnUrl } from './utils/urlConverters.js';
-import { addUnlinkedWord, filterUnlinkedWords, removeUnlinkedWordByContent, getUnlinkedWords } from './utils/unlinkedWords.js';
+import { filterUnlinkedWords, removeUnlinkedWordByContent, getUnlinkedWords } from './utils/unlinkedWords.js';
+import { useUnlinkedWords } from './hooks/useUnlinkedWords.js';
 
 // External TWL processing libraries
 import { generateTWLWithUsfm } from 'twl-generator';
@@ -104,7 +106,12 @@ function App() {
     // Handlers
     handleBranchSelect,
     handleBookSelect,
+    // Utilities
+    saveTwlContent,
   } = useAppState();
+
+  // Unlinked words management with server-first loading
+  const { addUnlinkedWord } = useUnlinkedWords();
 
   // Process TWL content based on column visibility setting
   const processedTsvContent = useMemo(() => processTsvContent(twlContent, showOnlySixColumns), [twlContent, showOnlySixColumns]);
@@ -116,9 +123,13 @@ function App() {
   const [backupTwlContent, setBackupTwlContent] = useState(null);
   const hasBackup = Boolean(backupTwlContent);
 
+  // Track original content when entering raw text mode
+  const [rawTextOriginalContent, setRawTextOriginalContent] = useState(null);
+
   // Clear backup when book changes
   useEffect(() => {
     setBackupTwlContent(null);
+    setRawTextOriginalContent(null);
   }, [selectedBook?.value]); // Only trigger on book value change, not branch
 
   // Download menu state
@@ -153,9 +164,13 @@ function App() {
    */
   const handleUnlinkedWordsChange = () => {
     if (twlContent) {
-      // Filter current content with updated unlinked words
+      // Create backup before filtering content
+      createBackup();
+      // Filter current content using local storage data
       const filteredContent = filterUnlinkedWords(twlContent);
       setTwlContent(filteredContent);
+      // Save to localStorage after filtering
+      saveTwlContent(filteredContent);
     }
   };
 
@@ -194,12 +209,14 @@ function App() {
     const newContent = newLines.join('\n');
 
     setTwlContent(newContent);
+    // Save to localStorage after deletion
+    saveTwlContent(newContent);
   };
 
   /**
    * Handle unlinking a word - removes all rows with matching OrigWords and TWLink
    */
-  const handleUnlinkRow = (rowIndex) => {
+  const handleUnlinkRow = async (rowIndex) => {
     if (!twlContent) return;
 
     // Create backup before making changes
@@ -237,12 +254,16 @@ function App() {
     const normalizedOrigWords = normalizeHebrewText(origWords);
     const normalizedTWLink = twLink.trim();
 
-    // Add to unlinked words list (but first check if this combination already exists)
-    addUnlinkedWord(selectedBook?.label || 'Unknown', reference, origWords, twLink, glQuote);
+    console.log('Normalized target:', { normalizedOrigWords, normalizedTWLink });
+
+    // Add to unlinked words (both server and local)
+    await addUnlinkedWord(selectedBook?.label || 'Unknown', reference, origWords, twLink, glQuote);
 
     // Remove all rows that match this OrigWords and TWLink combination (using normalized comparison)
     const filteredLines = [lines[0]]; // Keep header
     let removedCount = 0;
+
+    console.log(`Scanning ${lines.length - 1} rows for matches...`);
 
     for (let i = 1; i < lines.length; i++) {
       const currentRow = lines[i].split('\t');
@@ -253,12 +274,22 @@ function App() {
       const currentNormalizedOrigWords = normalizeHebrewText(currentOrigWords);
       const currentNormalizedTWLink = currentTWLink.trim();
 
-      // Keep row if it doesn't match the unlinked combination (using normalized comparison)
-      if (currentNormalizedOrigWords !== normalizedOrigWords || currentNormalizedTWLink !== normalizedTWLink) {
-        filteredLines.push(lines[i]);
-      } else {
+      // Check if this row matches
+      const origWordsMatch = currentNormalizedOrigWords === normalizedOrigWords;
+      const twLinkMatch = currentNormalizedTWLink === normalizedTWLink;
+      const shouldRemove = origWordsMatch && twLinkMatch;
+
+      if (shouldRemove) {
         removedCount++;
-        console.log(`Removing row ${i}: OrigWords="${currentOrigWords}" (normalized: "${currentNormalizedOrigWords}"), TWLink="${currentTWLink}"`);
+        console.log(`REMOVING row ${i}: OrigWords="${currentOrigWords}" (norm: "${currentNormalizedOrigWords}"), TWLink="${currentTWLink}"`);
+      } else {
+        filteredLines.push(lines[i]);
+        // Log first few non-matches to understand what's different
+        if (removedCount === 0 && i <= 5) {
+          console.log(
+            `KEEPING row ${i}: OrigWords="${currentOrigWords}" (norm: "${currentNormalizedOrigWords}"), TWLink="${currentTWLink}" | OrigMatch: ${origWordsMatch}, TWMatch: ${twLinkMatch}`
+          );
+        }
       }
     }
 
@@ -266,6 +297,8 @@ function App() {
 
     const newContent = filteredLines.join('\n');
     setTwlContent(newContent);
+    // Save to localStorage after unlinking
+    saveTwlContent(newContent);
   };
 
   /**
@@ -301,17 +334,48 @@ function App() {
     lines[dataRowIndex] = row.join('\t');
     const newContent = lines.join('\n');
     setTwlContent(newContent);
+    // Save to localStorage after disambiguation change
+    saveTwlContent(newContent);
   };
 
   /**
-   * Handle raw text changes with backup
+   * Handle raw text changes (no automatic backup)
    */
   const handleRawTextChange = (newContent) => {
-    if (newContent !== twlContent) {
-      // Create backup before making changes
-      createBackup();
-      setTwlContent(newContent);
+    setTwlContent(newContent);
+  };
+
+  /**
+   * Handle switching to Raw Text mode - create backup before editing starts
+   */
+  const handleViewModeChange = (event, newViewMode) => {
+    if (newViewMode !== null) {
+      // If switching to raw text mode, create backup before editing starts
+      if (newViewMode === 'raw' && viewMode === 'table' && twlContent && !hasBackup) {
+        createBackup();
+        // Also track the original content for change detection
+        setRawTextOriginalContent(twlContent);
+      }
+      // If switching back to table from raw text, clear the tracking
+      if (newViewMode === 'table' && viewMode === 'raw') {
+        setRawTextOriginalContent(null);
+      }
+      setViewMode(newViewMode);
     }
+  };
+
+  /**
+   * Handle Save button click - return to table view and save if content changed
+   */
+  const handleSave = () => {
+    // Check if content changed during raw text editing
+    if (rawTextOriginalContent !== null && twlContent !== rawTextOriginalContent) {
+      // Content changed, save it
+      saveTwlContent();
+      console.log('Content changed in raw text mode, saved to localStorage');
+    }
+    setViewMode('table');
+    setRawTextOriginalContent(null);
   };
 
   // Prepare book options for the autocomplete
@@ -449,11 +513,13 @@ function App() {
       generatedTwl = ensureUniqueIds(generatedTwl);
       console.log('Generated TWL (with unique IDs):', generatedTwl);
 
-      // Filter out unlinked words
+      // Filter out unlinked words using local storage data
       generatedTwl = filterUnlinkedWords(generatedTwl);
       console.log('Generated TWL (after filtering unlinked words):', generatedTwl);
 
       setTwlContent(generatedTwl);
+      // Save to localStorage after initial generation (pass content directly)
+      saveTwlContent(generatedTwl);
     } catch (err) {
       setError(`Failed to generate TWL: ${err.message}`);
       console.error(err);
@@ -802,19 +868,26 @@ function App() {
                     label="Hide the Extra Columns"
                   />
 
-                  <ToggleButtonGroup
-                    value={viewMode}
-                    exclusive
-                    onChange={(event, newViewMode) => {
-                      if (newViewMode !== null) {
-                        setViewMode(newViewMode);
-                      }
-                    }}
-                    size="small"
-                  >
+                  <ToggleButtonGroup value={viewMode} exclusive onChange={handleViewModeChange} size="small">
                     <ToggleButton value="table">Table View</ToggleButton>
                     <ToggleButton value="raw">Raw Text {showOnlySixColumns ? <span>(Read-Only)</span> : <span>(Edit Mode)</span>}</ToggleButton>
                   </ToggleButtonGroup>
+
+                  {viewMode === 'raw' && !showOnlySixColumns && (
+                    <Button
+                      onClick={handleSave}
+                      startIcon={<SaveIcon />}
+                      variant="contained"
+                      size="small"
+                      sx={{
+                        backgroundColor: '#2e7d32',
+                        textTransform: 'none',
+                        '&:hover': { backgroundColor: '#1b5e20' },
+                      }}
+                    >
+                      Save & Return to Table View
+                    </Button>
+                  )}
 
                   {viewMode === 'table' && hasBackup && (
                     <Button
@@ -829,7 +902,7 @@ function App() {
                         '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
                       }}
                     >
-                      Undo Last Change
+                      Undo All Changes
                     </Button>
                   )}
 
