@@ -54,7 +54,15 @@ import TWLTable from './components/TWLTable.jsx';
 import UnlinkedWordsManager from './components/UnlinkedWordsManager.jsx';
 import { fetchUSFMContent, fetchTWLContent } from './services/apiService.js';
 import { mergeExistingTwls } from './services/twlService.js';
-import { isValidTsvStructure, isValidExtendedTsvStructure, isExtendedTsvFormat, processTsvContent, addGLQuoteColumns, ensureUniqueIds } from './utils/tsvUtils.js';
+import {
+  isValidTsvStructure,
+  isValidExtendedTsvStructure,
+  isExtendedTsvFormat,
+  processTsvContent,
+  addGLQuoteColumns,
+  ensureUniqueIds,
+  normalizeTsvColumnCount,
+} from './utils/tsvUtils.js';
 import { convertReferenceToTnUrl } from './utils/urlConverters.js';
 import { filterUnlinkedWords, removeUnlinkedWordByContent, getUnlinkedWords } from './utils/unlinkedWords.js';
 import { useUnlinkedWords } from './hooks/useUnlinkedWords.js';
@@ -89,7 +97,6 @@ function App() {
     loading,
     error,
     viewMode,
-    showExistingTwlTextArea,
     existingTwlValid,
     // State setters
     setUsfmContent,
@@ -99,7 +106,6 @@ function App() {
     setLoading,
     setError,
     setViewMode,
-    setShowExistingTwlTextArea,
     setExistingTwlValid,
     // Handlers
     handleBranchSelect,
@@ -204,7 +210,10 @@ function App() {
 
     // Remove the specified row (add 1 to skip header)
     const newLines = lines.filter((_, index) => index !== rowIndex + 1);
-    const newContent = newLines.join('\n');
+    let newContent = newLines.join('\n');
+
+    // Normalize column count to ensure consistency
+    newContent = normalizeTsvColumnCount(newContent);
 
     setTwlContent(newContent);
     // Save to localStorage after deletion
@@ -293,7 +302,9 @@ function App() {
 
     console.log(`Removed ${removedCount} rows with normalized OrigWords="${normalizedOrigWords}" and TWLink="${normalizedTWLink}"`);
 
-    const newContent = filteredLines.join('\n');
+    let newContent = filteredLines.join('\n');
+    // Normalize column count to ensure consistency
+    newContent = normalizeTsvColumnCount(newContent);
     setTwlContent(newContent);
     // Save to localStorage after unlinking
     saveTwlContent(newContent);
@@ -330,7 +341,9 @@ function App() {
 
     // Update the content
     lines[dataRowIndex] = row.join('\t');
-    const newContent = lines.join('\n');
+    let newContent = lines.join('\n');
+    // Normalize column count to ensure consistency
+    newContent = normalizeTsvColumnCount(newContent);
     setTwlContent(newContent);
     // Save to localStorage after disambiguation change
     saveTwlContent(newContent);
@@ -360,7 +373,9 @@ function App() {
 
     // Update the content
     lines[dataRowIndex] = row.join('\t');
-    const newContent = lines.join('\n');
+    let newContent = lines.join('\n');
+    // Normalize column count to ensure consistency
+    newContent = normalizeTsvColumnCount(newContent);
     setTwlContent(newContent);
     // Save to localStorage after clearing disambiguation
     saveTwlContent(newContent);
@@ -428,7 +443,6 @@ function App() {
     try {
       const text = await navigator.clipboard.readText();
       handleExistingTwlChange(text);
-      setShowExistingTwlTextArea(true);
     } catch (err) {
       setError('Failed to read clipboard content. Please paste manually.');
     }
@@ -444,7 +458,6 @@ function App() {
     const reader = new FileReader();
     reader.onload = (e) => {
       handleExistingTwlChange(e.target.result);
-      setShowExistingTwlTextArea(true);
     };
     reader.onerror = () => {
       setError('Failed to read the uploaded file.');
@@ -459,6 +472,7 @@ function App() {
     // Check if we have extended format TWL content that should be loaded directly
     if (existingTwlContent.trim() && isExtendedTsvFormat(existingTwlContent)) {
       await handleLoadExtendedTwl();
+      setExistingTwlContent('');
     } else {
       await handleGenerateTwl();
     }
@@ -483,7 +497,7 @@ function App() {
 
     try {
       let twlToLoad = existingTwlContent.trim();
-      
+
       // Filter out unlinked words using local storage data
       twlToLoad = filterUnlinkedWords(twlToLoad);
       console.log('Loaded TWL (after filtering unlinked words):', twlToLoad);
@@ -674,14 +688,17 @@ function App() {
   };
 
   /**
-   * Download all columns (extended format with extra data)
+   * Download all columns of the TWL as TSV (normalized column count)
    */
   const handleDownloadAllColumns = () => {
     if (!twlContent) return;
 
     handleDownloadMenuClose();
 
-    const blob = new Blob([twlContent], { type: 'text/tab-separated-values' });
+    // Normalize the content to ensure all rows have consistent column counts
+    const normalizedContent = normalizeTsvColumnCount(twlContent);
+
+    const blob = new Blob([normalizedContent], { type: 'text/tab-separated-values' });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement('a');
@@ -845,7 +862,6 @@ function App() {
                     try {
                       const content = await fetchTWLContent(selectedBook.value, selectedBranch);
                       handleExistingTwlChange(content);
-                      setShowExistingTwlTextArea(true);
                     } catch (err) {
                       setError(`Failed to fetch existing TWL: ${err.message}`);
                     } finally {
@@ -865,33 +881,32 @@ function App() {
                 </Button>
               </Box>
 
-              {showExistingTwlTextArea && (
-                <textarea
-                  value={existingTwlContent}
-                  onChange={(e) => handleExistingTwlChange(e.target.value)}
-                  placeholder="Existing TWL content will appear here... (6 columns for merging, or 8-11 columns for direct loading)"
-                  style={{
-                    width: '100%',
-                    height: '200px',
-                    padding: '12px',
-                    border: `2px solid ${existingTwlValid ? '#ccc' : '#f44336'}`,
-                    borderRadius: '4px',
-                    fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-                    fontSize: '12px',
-                    resize: 'both',
-                    whiteSpace: 'pre',
-                    overflow: 'auto',
-                    backgroundColor: existingTwlValid ? '#ffffff' : '#ffebee',
-                    boxSizing: 'border-box',
-                    outline: 'none',
-                    lineHeight: '1.4',
-                  }}
-                />
-              )}
+              <textarea
+                value={existingTwlContent}
+                onChange={(e) => handleExistingTwlChange(e.target.value)}
+                placeholder="Existing TWL content will appear here... (6 columns for merging, or 8-11 columns for direct loading)"
+                style={{
+                  width: '100%',
+                  height: existingTwlContent ? '200px' : '50px',
+                  padding: '12px',
+                  border: `2px solid ${existingTwlValid ? '#ccc' : '#f44336'}`,
+                  borderRadius: '4px',
+                  fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                  fontSize: '12px',
+                  resize: 'both',
+                  whiteSpace: 'pre',
+                  overflow: 'auto',
+                  backgroundColor: existingTwlValid ? '#ffffff' : '#ffebee',
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                  lineHeight: '1.4',
+                }}
+              />
 
-              {showExistingTwlTextArea && !existingTwlValid && (
+              {existingTwlContent.trim() && !existingTwlValid && (
                 <Alert severity="error" sx={{ mt: 1 }}>
-                  Invalid TWL format. Must have exactly 6 columns, or 8-11 columns with proper headers (Reference, ID, Tags, OrigWords, Occurrence, TWLink, GLQuote, GLOccurrence, [Disambiguation, Context], [Already Exists]).
+                  Invalid TWL format. Must have exactly 6 columns, or 8-11 columns with proper headers (Reference, ID, Tags, OrigWords, Occurrence, TWLink, GLQuote, GLOccurrence,
+                  [Disambiguation, Context], [Already Exists]).
                 </Alert>
               )}
 

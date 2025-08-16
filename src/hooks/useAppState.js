@@ -64,7 +64,6 @@ export const useAppState = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'raw'
-  const [showExistingTwlTextArea, setShowExistingTwlTextArea] = useState(false);
   const [existingTwlValid, setExistingTwlValid] = useState(true);
 
   // Fetch branches on component mount
@@ -130,7 +129,6 @@ export const useAppState = () => {
       setTwlContent('');
       setExistingTwlContent('');
       setExistingTwlContentWithGLQuotes('');
-      setShowExistingTwlTextArea(false);
       setExistingTwlValid(true);
       setError('');
       // Clear saved TWL content
@@ -152,7 +150,6 @@ export const useAppState = () => {
       setUsfmContent('');
       setTwlContent('');
       setExistingTwlContent('');
-      setShowExistingTwlTextArea(false);
       setExistingTwlValid(true);
       setError('');
       // Clear saved TWL content
@@ -175,7 +172,6 @@ export const useAppState = () => {
     loading,
     error,
     viewMode,
-    showExistingTwlTextArea,
     existingTwlValid,
 
     // State setters
@@ -186,7 +182,6 @@ export const useAppState = () => {
     setLoading,
     setError,
     setViewMode,
-    setShowExistingTwlTextArea,
     setExistingTwlValid,
 
     // Handlers

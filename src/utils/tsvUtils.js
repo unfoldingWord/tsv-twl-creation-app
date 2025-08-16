@@ -3,7 +3,7 @@
  */
 
 /**
- * Validate if TSV content has proper structure (6, 8, 9, 10, or 11 columns per row)
+ * Validate if TSV content has proper structure (6 columns per row for basic format)
  */
 export const isValidTsvStructure = (content) => {
   if (!content || typeof content !== 'string') return false;
@@ -15,17 +15,10 @@ export const isValidTsvStructure = (content) => {
 
   if (lines.length === 0) return false;
 
-  // Get the column count from the first line
-  const expectedColumnCount = lines[0].split('\t').length;
-  
-  // Check that all lines have the same number of columns and it's one of the supported counts
-  if (![6, 8, 9, 10, 11].includes(expectedColumnCount)) {
-    return false;
-  }
-
+  // Check that all lines have exactly 6 columns (basic TWL format)
   for (let i = 0; i < lines.length; i++) {
     const columns = lines[i].split('\t');
-    if (columns.length !== expectedColumnCount) {
+    if (columns.length !== 6) {
       return false;
     }
   }
@@ -59,6 +52,8 @@ export const isValidExtendedTsvStructure = (content) => {
 
   // Check if headers match expected format
   let expectedHeaders = [];
+  let allowMissingLastColumn = false;
+
   if (columnCount === 8) {
     expectedHeaders = expected8Headers;
   } else if (columnCount === 9) {
@@ -67,6 +62,9 @@ export const isValidExtendedTsvStructure = (content) => {
     expectedHeaders = expected10Headers;
   } else if (columnCount === 11) {
     expectedHeaders = expected11Headers;
+    // For 11-column format, allow data rows to have 10 or 11 columns
+    // (some may be missing the "Already Exists" column)
+    allowMissingLastColumn = true;
   } else {
     return false;
   }
@@ -77,18 +75,24 @@ export const isValidExtendedTsvStructure = (content) => {
     return false;
   }
 
-  // Validate that all data rows have the same number of columns as the header
+  // Validate that all data rows have consistent column count
   for (let i = 1; i < lines.length; i++) {
     const rowColumns = lines[i].split('\t');
-    if (rowColumns.length !== columnCount) {
-      return false;
+    if (allowMissingLastColumn) {
+      // For 11-column header format, allow rows to have 10 or 11 columns
+      if (rowColumns.length !== 10 && rowColumns.length !== 11) {
+        return false;
+      }
+    } else {
+      // For other formats, require exact column count
+      if (rowColumns.length !== columnCount) {
+        return false;
+      }
     }
   }
 
   return true;
-};
-
-/**
+};/**
  * Check if TSV content is in extended format (8-11 columns) and should be loaded directly
  */
 export const isExtendedTsvFormat = (content) => {
@@ -103,6 +107,43 @@ export const isExtendedTsvFormat = (content) => {
 
   const firstLineColumns = lines[0].split('\t');
   return [8, 9, 10, 11].includes(firstLineColumns.length) && isValidExtendedTsvStructure(content);
+};
+
+/**
+ * Normalize TSV content to ensure all rows have the same number of columns as the header
+ */
+export const normalizeTsvColumnCount = (content) => {
+  if (!content || typeof content !== 'string') return content;
+
+  const lines = content
+    .trim()
+    .split('\n')
+    .filter((line) => line.trim());
+
+  if (lines.length === 0) return content;
+
+  // Get expected column count from header
+  const headerColumns = lines[0].split('\t');
+  const expectedColumnCount = headerColumns.length;
+
+  // Normalize each line to have the expected column count
+  const normalizedLines = lines.map((line, index) => {
+    const columns = line.split('\t');
+
+    if (columns.length === expectedColumnCount) {
+      return line; // Already correct
+    } else if (columns.length < expectedColumnCount) {
+      // Add empty columns to reach expected count
+      const missingCount = expectedColumnCount - columns.length;
+      const paddedColumns = [...columns, ...new Array(missingCount).fill('')];
+      return paddedColumns.join('\t');
+    } else {
+      // Too many columns, truncate to expected count
+      return columns.slice(0, expectedColumnCount).join('\t');
+    }
+  });
+
+  return normalizedLines.join('\n');
 };
 
 /**
