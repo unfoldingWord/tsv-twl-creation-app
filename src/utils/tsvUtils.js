@@ -3,7 +3,7 @@
  */
 
 /**
- * Validate if TSV content has proper structure (6 columns per row)
+ * Validate if TSV content has proper structure (6, 8, 9, 10, or 11 columns per row)
  */
 export const isValidTsvStructure = (content) => {
   if (!content || typeof content !== 'string') return false;
@@ -15,15 +15,94 @@ export const isValidTsvStructure = (content) => {
 
   if (lines.length === 0) return false;
 
-  // Check each line has exactly 6 columns
+  // Get the column count from the first line
+  const expectedColumnCount = lines[0].split('\t').length;
+  
+  // Check that all lines have the same number of columns and it's one of the supported counts
+  if (![6, 8, 9, 10, 11].includes(expectedColumnCount)) {
+    return false;
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const columns = lines[i].split('\t');
-    if (columns.length !== 6) {
+    if (columns.length !== expectedColumnCount) {
       return false;
     }
   }
 
   return true;
+};
+
+/**
+ * Validate if TSV content has the correct headers for 8-9 column or 10-11 column format
+ */
+export const isValidExtendedTsvStructure = (content) => {
+  if (!content || typeof content !== 'string') return false;
+
+  const lines = content
+    .trim()
+    .split('\n')
+    .filter((line) => line.trim());
+
+  if (lines.length === 0) return false;
+
+  const headers = lines[0].split('\t');
+  const columnCount = headers.length;
+
+  // Expected headers for 8-9 columns (old format with GLQuote/GLOccurrence)
+  const expected8Headers = ['Reference', 'ID', 'Tags', 'OrigWords', 'Occurrence', 'TWLink', 'GLQuote', 'GLOccurrence'];
+  const expected9Headers = [...expected8Headers, 'Already Exists'];
+
+  // Expected headers for 10-11 columns (new format with Disambiguation and Context)
+  const expected10Headers = ['Reference', 'ID', 'Tags', 'OrigWords', 'Occurrence', 'TWLink', 'GLQuote', 'GLOccurrence', 'Disambiguation', 'Context'];
+  const expected11Headers = [...expected10Headers, 'Already Exists'];
+
+  // Check if headers match expected format
+  let expectedHeaders = [];
+  if (columnCount === 8) {
+    expectedHeaders = expected8Headers;
+  } else if (columnCount === 9) {
+    expectedHeaders = expected9Headers;
+  } else if (columnCount === 10) {
+    expectedHeaders = expected10Headers;
+  } else if (columnCount === 11) {
+    expectedHeaders = expected11Headers;
+  } else {
+    return false;
+  }
+
+  // Validate headers
+  const headersMatch = headers.every((header, index) => header === expectedHeaders[index]);
+  if (!headersMatch) {
+    return false;
+  }
+
+  // Validate that all data rows have the same number of columns as the header
+  for (let i = 1; i < lines.length; i++) {
+    const rowColumns = lines[i].split('\t');
+    if (rowColumns.length !== columnCount) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+/**
+ * Check if TSV content is in extended format (8-11 columns) and should be loaded directly
+ */
+export const isExtendedTsvFormat = (content) => {
+  if (!content || typeof content !== 'string') return false;
+
+  const lines = content
+    .trim()
+    .split('\n')
+    .filter((line) => line.trim());
+
+  if (lines.length === 0) return false;
+
+  const firstLineColumns = lines[0].split('\t');
+  return [8, 9, 10, 11].includes(firstLineColumns.length) && isValidExtendedTsvStructure(content);
 };
 
 /**

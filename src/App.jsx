@@ -54,7 +54,7 @@ import TWLTable from './components/TWLTable.jsx';
 import UnlinkedWordsManager from './components/UnlinkedWordsManager.jsx';
 import { fetchUSFMContent, fetchTWLContent } from './services/apiService.js';
 import { mergeExistingTwls } from './services/twlService.js';
-import { isValidTsvStructure, processTsvContent, addGLQuoteColumns, ensureUniqueIds } from './utils/tsvUtils.js';
+import { isValidTsvStructure, isValidExtendedTsvStructure, isExtendedTsvFormat, processTsvContent, addGLQuoteColumns, ensureUniqueIds } from './utils/tsvUtils.js';
 import { convertReferenceToTnUrl } from './utils/urlConverters.js';
 import { filterUnlinkedWords, removeUnlinkedWordByContent, getUnlinkedWords } from './utils/unlinkedWords.js';
 import { useUnlinkedWords } from './hooks/useUnlinkedWords.js';
@@ -453,6 +453,53 @@ function App() {
   };
 
   /**
+   * Handle the main action button - either generate TWL or load existing extended format
+   */
+  const handleMainAction = async () => {
+    // Check if we have extended format TWL content that should be loaded directly
+    if (existingTwlContent.trim() && isExtendedTsvFormat(existingTwlContent)) {
+      await handleLoadExtendedTwl();
+    } else {
+      await handleGenerateTwl();
+    }
+  };
+
+  /**
+   * Load existing extended format TWL (8-11 columns) directly into table view
+   */
+  const handleLoadExtendedTwl = async () => {
+    if (!selectedBook) {
+      setError('Please select a book first.');
+      return;
+    }
+
+    if (!existingTwlContent.trim()) {
+      setError('No TWL content to load.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      let twlToLoad = existingTwlContent.trim();
+      
+      // Filter out unlinked words using local storage data
+      twlToLoad = filterUnlinkedWords(twlToLoad);
+      console.log('Loaded TWL (after filtering unlinked words):', twlToLoad);
+
+      setTwlContent(twlToLoad);
+      // Save to localStorage after loading (pass content directly)
+      saveTwlContent(twlToLoad);
+    } catch (err) {
+      setError(`Failed to load TWL: ${err.message}`);
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
    * Generate TWL content from USFM using external libraries
    */
   const handleGenerateTwl = async () => {
@@ -563,7 +610,10 @@ function App() {
     setExistingTwlContent(content);
 
     if (content.trim()) {
-      const isValid = isValidTsvStructure(content);
+      // Check if it's valid 6-column format or valid extended format (8-11 columns)
+      const isValid6Column = isValidTsvStructure(content);
+      const isValidExtended = isValidExtendedTsvStructure(content);
+      const isValid = isValid6Column || isValidExtended;
       setExistingTwlValid(isValid);
     } else {
       setExistingTwlValid(true);
@@ -819,7 +869,7 @@ function App() {
                 <textarea
                   value={existingTwlContent}
                   onChange={(e) => handleExistingTwlChange(e.target.value)}
-                  placeholder="Existing TWL content will appear here... (Must have exactly 6 columns per row)"
+                  placeholder="Existing TWL content will appear here... (6 columns for merging, or 8-11 columns for direct loading)"
                   style={{
                     width: '100%',
                     height: '200px',
@@ -841,14 +891,14 @@ function App() {
 
               {showExistingTwlTextArea && !existingTwlValid && (
                 <Alert severity="error" sx={{ mt: 1 }}>
-                  Invalid TWL format. Each row must have exactly 6 tab-separated columns.
+                  Invalid TWL format. Must have exactly 6 columns, or 8-11 columns with proper headers (Reference, ID, Tags, OrigWords, Occurrence, TWLink, GLQuote, GLOccurrence, [Disambiguation, Context], [Already Exists]).
                 </Alert>
               )}
 
-              {/* Generate TWLs Button */}
+              {/* Generate/Load TWLs Button */}
               <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
                 <Button
-                  onClick={handleGenerateTwl}
+                  onClick={handleMainAction}
                   variant="contained"
                   disabled={!selectedBook || loading || (existingTwlContent.trim() !== '' && !existingTwlValid)}
                   sx={{
@@ -860,7 +910,7 @@ function App() {
                   }}
                 >
                   {loading ? <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} /> : null}
-                  Generate TWLs
+                  {existingTwlContent.trim() && isExtendedTsvFormat(existingTwlContent) ? 'Load into Table View' : 'Generate TWLs'}
                 </Button>
               </Box>
             </CardContent>
