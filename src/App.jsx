@@ -1045,15 +1045,6 @@ function App() {
                     </>
                   )}
                 </Box>
-
-                {/* Row Count Display */}
-                {twlContent && (
-                  <Box sx={{ mt: 1, textAlign: 'center' }}>
-                    <Typography variant="body2" color="text.secondary">
-                      {getTwlRowCount()} TWL {getTwlRowCount() === 1 ? 'row' : 'rows'}
-                    </Typography>
-                  </Box>
-                )}
               </CardContent>
             </Card>
           )}
