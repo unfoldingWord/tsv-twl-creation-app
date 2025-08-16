@@ -291,49 +291,17 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow>
-              {<TableCell sx={{ width: '100px', textAlign: 'center' }}>Actions</TableCell>}
               {tableData.headers.map((header, index) => (
                 <TableCell key={index} sx={{ fontWeight: index > 5 ? 'normal' : 'bold', fontSize: index > 5 ? '1em' : '1.2em', color: index > 5 ? 'grey' : 'black' }}>
                   {header}
                 </TableCell>
               ))}
+              {<TableCell sx={{ width: '100px', textAlign: 'center', fontWeight: 'norma', color: 'grey' }}>Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
             {paginatedRows.map((row, rowIndex) => (
               <TableRow key={`${page}-${rowIndex}`} hover>
-                {/* Actions Column - only show when actions are enabled */}
-                {
-                  <TableCell sx={{ width: '100px', textAlign: 'center' }}>
-                    <Tooltip title="Delete just this one TWL">
-                      <IconButton
-                        onClick={() => onDeleteRow(getActualRowIndex(rowIndex))}
-                        size="small"
-                        sx={{
-                          color: '#d32f2f',
-                          '&:hover': { backgroundColor: 'rgba(211, 47, 47, 0.04)' },
-                          mr: 1,
-                        }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Unlink this Word: This `OrigWords` will never be linked to this `TW` article again, removing this one and others in this list with the same `OrigWords` and `TWLink`. Can be managed via the Unlinked Words Manager above.">
-                      <IconButton
-                        onClick={() => onUnlinkRow(getActualRowIndex(rowIndex))}
-                        size="small"
-                        sx={{
-                          color: 'red',
-                          '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.04)' },
-                        }}
-                      >
-                        <UnlinkIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                }
-
-                {/* Display only the specified columns */}
                 {row.map((cell, cellIndex) => {
                   const headerName = tableData.headers[cellIndex];
                   const isTWLinkColumn = headerName === 'TWLink';
@@ -505,6 +473,34 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                   // Default cell rendering
                   return <TableCell key={cellIndex}>{cell}</TableCell>;
                 })}
+
+                <TableCell sx={{ width: '100px', textAlign: 'center' }}>
+                  <Tooltip title="Delete just this one TWL">
+                    <IconButton
+                      onClick={() => onDeleteRow(getActualRowIndex(rowIndex))}
+                      size="small"
+                      sx={{
+                        color: '#d32f2f',
+                        '&:hover': { backgroundColor: 'rgba(211, 47, 47, 0.04)' },
+                        mr: 1,
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Unlink this Word: This `OrigWords` will never be linked to this `TW` article again, removing this one and others in this list with the same `OrigWords` and `TWLink`. Can be managed via the Unlinked Words Manager above.">
+                    <IconButton
+                      onClick={() => onUnlinkRow(getActualRowIndex(rowIndex))}
+                      size="small"
+                      sx={{
+                        color: 'red',
+                        '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.04)' },
+                      }}
+                    >
+                      <UnlinkIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
