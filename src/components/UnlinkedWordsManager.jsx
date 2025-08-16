@@ -168,7 +168,6 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
             <Table stickyHeader size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ width: '80px', textAlign: 'center' }}>Action</TableCell>
                   <TableCell sx={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('book')}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       Book
@@ -213,25 +212,12 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
                       {sortColumn === 'dateAdded' && (sortDirection === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />)}
                     </Box>
                   </TableCell>
+                  <TableCell sx={{ width: '80px', textAlign: 'center' }}>Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {displayedUnlinkedWords.map((word) => (
                   <TableRow key={word.id} hover>
-                    <TableCell sx={{ textAlign: 'center' }}>
-                      <Tooltip title="Re-enable linking for this word">
-                        <IconButton
-                          onClick={() => handleRemoveWord(word.origWords, word.twLink)}
-                          size="small"
-                          sx={{
-                            color: '#4caf50',
-                            '&:hover': { backgroundColor: 'rgba(76, 175, 80, 0.04)' },
-                          }}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
                     <TableCell
                       sx={{
                         fontFamily: 'Consolas, Monaco, "Courier New", monospace',
@@ -311,6 +297,20 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
                     </TableCell>
                     {activeTab === 1 && <TableCell sx={{ fontSize: '12px', fontFamily: 'monospace' }}>{word.userIdentifier || 'Unknown'}</TableCell>}
                     <TableCell sx={{ fontSize: '12px' }}>{new Date(word.dateAdded).toLocaleDateString()}</TableCell>
+                    <TableCell sx={{ textAlign: 'center' }}>
+                      <Tooltip title="Re-enable linking for this word">
+                        <IconButton
+                          onClick={() => handleRemoveWord(word.origWords, word.twLink)}
+                          size="small"
+                          sx={{
+                            color: '#4caf50',
+                            '&:hover': { backgroundColor: 'rgba(76, 175, 80, 0.04)' },
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
