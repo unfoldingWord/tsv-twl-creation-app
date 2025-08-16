@@ -2,6 +2,8 @@
  * Utilities for managing unlinked words in local storage
  */
 
+import { getCurrentTimestamp, generateUniqueId } from './userUtils.js';
+
 const UNLINKED_WORDS_KEY = 'twl-unlinked-words';
 
 /**
@@ -61,13 +63,13 @@ export const addUnlinkedWord = (book, reference, origWords, twLink, glQuote) => 
   if (existingIndex === -1) {
     // Add new unlinked word
     unlinkedWords.push({
-      id: Date.now(), // Simple unique ID
+      id: generateUniqueId(), // Simple unique ID
       book,
       reference,
       origWords,
       twLink,
       glQuote,
-      dateAdded: new Date().toISOString()
+      dateAdded: getCurrentTimestamp()
     });
 
     saveUnlinkedWords(unlinkedWords);
@@ -256,13 +258,13 @@ export const importUnlinkedWords = (importData) => {
     if (!exists) {
       // Add new unlinked word
       currentUnlinkedWords.push({
-        id: Date.now() + Math.random(), // Ensure unique ID
+        id: generateUniqueId(), // Ensure unique ID
         book: item.book || 'Imported',
         reference: item.reference || '',
         origWords: item.origWords,
         twLink: item.twLink,
         glQuote: item.glQuote || '',
-        dateAdded: item.dateAdded || new Date().toISOString()
+        dateAdded: item.dateAdded || getCurrentTimestamp()
       });
       addedCount++;
     } else {

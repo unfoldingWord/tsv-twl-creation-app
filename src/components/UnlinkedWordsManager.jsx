@@ -22,23 +22,80 @@ import {
   CircularProgress,
   Alert,
   Link,
+  Tabs,
+  Tab,
 } from '@mui/material';
-import { Delete as DeleteIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, ArrowUpward as ArrowUpwardIcon, ArrowDownward as ArrowDownwardIcon } from '@mui/icons-material';
 import { useUnlinkedWords } from '../hooks/useUnlinkedWords.js';
 import { convertReferenceToUltUrl, convertTwLinkToUrl } from '../utils/urlConverters.js';
+import { getUserIdentifier } from '../utils/userUtils.js';
 
 const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
   const { unlinkedWords, loading, error, removeUnlinkedWord, refreshFromServer, refreshFromLocalStorage } = useUnlinkedWords();
+  const [activeTab, setActiveTab] = useState(0); // 0 = My Words, 1 = All Words
+  const [sortColumn, setSortColumn] = useState('dateAdded'); // Default sort by Date Added
+  const [sortDirection, setSortDirection] = useState('desc'); // Default descending (newest first)
 
   // Refresh unlinked words when dialog opens
   useEffect(() => {
     if (open) {
       refreshFromLocalStorage();
     }
-  }, [open, refreshFromLocalStorage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]); // Only depend on 'open', not the function
+
+  // Get current user ID
+  const currentUserId = getUserIdentifier();
 
   // Filter out removed items for display
-  const activeUnlinkedWords = unlinkedWords.filter((word) => !word.removed);
+  const allActiveUnlinkedWords = unlinkedWords.filter((word) => !word.removed);
+  const myActiveUnlinkedWords = allActiveUnlinkedWords.filter((word) => word.userIdentifier === currentUserId);
+
+  // Determine which words to display based on active tab
+  let displayedUnlinkedWords = activeTab === 0 ? myActiveUnlinkedWords : allActiveUnlinkedWords;
+
+  // Apply sorting if a sort column is selected
+  if (sortColumn) {
+    displayedUnlinkedWords = [...displayedUnlinkedWords].sort((a, b) => {
+      let valueA = a[sortColumn] || '';
+      let valueB = b[sortColumn] || '';
+
+      // Special handling for date fields
+      if (sortColumn === 'dateAdded') {
+        valueA = new Date(valueA).getTime();
+        valueB = new Date(valueB).getTime();
+      } else {
+        // Convert to strings for consistent comparison
+        valueA = String(valueA).toLowerCase();
+        valueB = String(valueB).toLowerCase();
+      }
+
+      if (valueA < valueB) {
+        return sortDirection === 'asc' ? -1 : 1;
+      }
+      if (valueA > valueB) {
+        return sortDirection === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }
+
+  // Handle tab change
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
+
+  // Handle sorting
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      // If clicking the same column, toggle direction
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // If clicking a new column, set it as sort column with ascending direction
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
 
   /**
    * Handle removing an unlinked word
@@ -75,6 +132,14 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
         </Typography>
       </DialogTitle>
 
+      {/* Tabs for filtering */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 3 }}>
+        <Tabs value={activeTab} onChange={handleTabChange} aria-label="unlinked words filter tabs">
+          <Tab label={`My Unlinked Words (${myActiveUnlinkedWords.length})`} />
+          <Tab label={`All Unlinked Words (${allActiveUnlinkedWords.length})`} />
+        </Tabs>
+      </Box>
+
       <DialogContent>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
@@ -89,10 +154,10 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
           </Alert>
         ) : null}
 
-        {!loading && activeUnlinkedWords.length === 0 ? (
+        {!loading && displayedUnlinkedWords.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <Typography variant="body1" color="text.secondary">
-              No unlinked words found.
+              {activeTab === 0 ? 'No unlinked words found for your user.' : 'No unlinked words found.'}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
               Use the unlink button (🔗) in the table to unlink words.
@@ -104,16 +169,54 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ width: '80px', textAlign: 'center' }}>Action</TableCell>
-                  <TableCell>Book</TableCell>
-                  <TableCell>Reference</TableCell>
-                  <TableCell>Original Words</TableCell>
-                  <TableCell>TW Link</TableCell>
-                  <TableCell>GL Quote</TableCell>
-                  <TableCell>Date Added</TableCell>
+                  <TableCell sx={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('book')}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      Book
+                      {sortColumn === 'book' && (sortDirection === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />)}
+                    </Box>
+                  </TableCell>
+                  <TableCell sx={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('reference')}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      Reference
+                      {sortColumn === 'reference' && (sortDirection === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />)}
+                    </Box>
+                  </TableCell>
+                  <TableCell sx={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('origWords')}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      OrigWords
+                      {sortColumn === 'origWords' && (sortDirection === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />)}
+                    </Box>
+                  </TableCell>
+                  <TableCell sx={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('twLink')}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      TWLink
+                      {sortColumn === 'twLink' && (sortDirection === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />)}
+                    </Box>
+                  </TableCell>
+                  <TableCell sx={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('glQuote')}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      GLQuote
+                      {sortColumn === 'glQuote' && (sortDirection === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />)}
+                    </Box>
+                  </TableCell>
+                  {activeTab === 1 && (
+                    <TableCell sx={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('userIdentifier')}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        User ID
+                        {sortColumn === 'userIdentifier' && (sortDirection === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />)}
+                      </Box>
+                    </TableCell>
+                  )}
+                  <TableCell sx={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('dateAdded')}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      Date Added
+                      {sortColumn === 'dateAdded' && (sortDirection === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />)}
+                    </Box>
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {activeUnlinkedWords.map((word) => (
+                {displayedUnlinkedWords.map((word) => (
                   <TableRow key={word.id} hover>
                     <TableCell sx={{ textAlign: 'center' }}>
                       <Tooltip title="Re-enable linking for this word">
@@ -136,7 +239,7 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
                         fontWeight: 'bold',
                       }}
                     >
-                      {word.book || 'Unknown'}
+                      {word.book.toUpperCase() || 'Unknown'}
                     </TableCell>
                     <TableCell
                       sx={{
@@ -206,6 +309,7 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
                     >
                       {word.glQuote}
                     </TableCell>
+                    {activeTab === 1 && <TableCell sx={{ fontSize: '12px', fontFamily: 'monospace' }}>{word.userIdentifier || 'Unknown'}</TableCell>}
                     <TableCell sx={{ fontSize: '12px' }}>{new Date(word.dateAdded).toLocaleDateString()}</TableCell>
                   </TableRow>
                 ))}

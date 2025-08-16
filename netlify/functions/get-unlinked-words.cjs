@@ -79,6 +79,7 @@ exports.handler = async (event, context) => {
       glQuote: item.glQuote,
       dateAdded: item.dateAdded,
       removed: item.removed || false,
+      userIdentifier: item.userIdentifier, // Include userIdentifier field
     }));
 
     return {

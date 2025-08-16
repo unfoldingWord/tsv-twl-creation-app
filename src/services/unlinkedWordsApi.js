@@ -1,17 +1,7 @@
 /**
- * API service for server-side unlinked words management
+ * API functions for managing unlinked words on the server
  */
-
-// Get user identifier (could be enhanced with actual user auth)
-const getUserIdentifier = () => {
-  // Create a persistent user ID for tracking who did what
-  let userId = localStorage.getItem('twl-user-id');
-  if (!userId) {
-    userId = 'user-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('twl-user-id', userId);
-  }
-  return userId;
-};
+import { getUserIdentifier } from '../utils/userUtils.js';
 
 /**
  * Add an unlinked word to the server

@@ -52,24 +52,16 @@ export const convertReferenceToTnUrl = (reference, selectedBook) => {
 /**
  * Convert Bible reference to ULT URL for unlinked words manager
  */
-export const convertReferenceToUltUrl = (reference, bookLabel) => {
-  if (!reference || !bookLabel) {
+export const convertReferenceToUltUrl = (reference, book) => {
+  if (!reference || !book) {
     return null;
   }
 
   try {
-    // Extract book code from parentheses in bookLabel (e.g., "Ruth (rut)" -> "rut")
-    const match = bookLabel.match(/\(([^)]+)\)$/);
-    if (!match) {
-      return null;
-    }
-
-    const bookId = match[1];
-
     // Create the anchor for the specific verse
-    const anchor = `${bookId}-${reference.replace(':', '-')}`;
+    const anchor = `${book}-${reference.replace(':', '-')}`;
 
-    return `https://preview.door43.org/u/unfoldingWord/en_ult?book=${bookId}#${anchor}`;
+    return `https://preview.door43.org/u/unfoldingWord/en_ult?book=${book}#${anchor}`;
   } catch (error) {
     console.warn('Error converting reference to ULT URL:', reference, error);
     return null;

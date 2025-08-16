@@ -257,7 +257,7 @@ function App() {
     console.log('Normalized target:', { normalizedOrigWords, normalizedTWLink });
 
     // Add to unlinked words (both server and local)
-    await addUnlinkedWord(selectedBook?.label || 'Unknown', reference, origWords, twLink, glQuote);
+    await addUnlinkedWord(selectedBook?.value || 'Unknown', reference, origWords, twLink, glQuote);
 
     // Remove all rows that match this OrigWords and TWLink combination (using normalized comparison)
     const filteredLines = [lines[0]]; // Keep header

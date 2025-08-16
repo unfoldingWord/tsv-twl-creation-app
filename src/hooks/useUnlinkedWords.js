@@ -4,16 +4,7 @@
 import { useState, useEffect } from 'react';
 import { getUnlinkedWords, addUnlinkedWord as addToLocal, removeUnlinkedWord as removeFromLocal } from '../utils/unlinkedWords.js';
 import { getUnlinkedWordsFromServer, addUnlinkedWordToServer, removeUnlinkedWordFromServer, syncUnlinkedWordsWithServer } from '../services/unlinkedWordsApi.js';
-
-// Import getUserIdentifier for optimistic updates
-const getUserIdentifier = () => {
-  let userId = localStorage.getItem('twl-user-id');
-  if (!userId) {
-    userId = 'user-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('twl-user-id', userId);
-  }
-  return userId;
-};
+import { getUserIdentifier, getCurrentTimestamp } from '../utils/userUtils.js';
 
 export const useUnlinkedWords = () => {
   const [unlinkedWords, setUnlinkedWords] = useState([]);
@@ -67,7 +58,7 @@ export const useUnlinkedWords = () => {
         const updatedWord = {
           ...unlinkedWords[existingWordIndex],
           removed: false,
-          lastModified: new Date().toISOString()
+          lastModified: getCurrentTimestamp()
         };
 
         setUnlinkedWords(prev =>
@@ -96,7 +87,7 @@ export const useUnlinkedWords = () => {
         twLink,
         glQuote,
         userIdentifier: getUserIdentifier(),
-        dateAdded: new Date().toISOString(),
+        dateAdded: getCurrentTimestamp(),
         removed: false
       };
 
@@ -120,7 +111,7 @@ export const useUnlinkedWords = () => {
     // Optimistically update local state immediately for instant UI response
     setUnlinkedWords(prev => prev.map(word =>
       (word.origWords === origWords && word.twLink === twLink)
-        ? { ...word, removed: true, removedBy: getUserIdentifier(), lastModified: new Date().toISOString() }
+        ? { ...word, removed: true, removedBy: getUserIdentifier(), lastModified: getCurrentTimestamp() }
         : word
     ));
 
@@ -132,7 +123,7 @@ export const useUnlinkedWords = () => {
         ...localWords[localIndex],
         removed: true,
         removedBy: getUserIdentifier(),
-        lastModified: new Date().toISOString()
+        lastModified: getCurrentTimestamp()
       };
       localStorage.setItem('twl-unlinked-words', JSON.stringify(localWords));
     }
