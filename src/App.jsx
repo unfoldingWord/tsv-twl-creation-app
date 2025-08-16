@@ -932,7 +932,7 @@ function App() {
                         '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
                       }}
                     >
-                      Undo All Changes
+                      Undo Last Change
                     </Button>
                   )}
 
