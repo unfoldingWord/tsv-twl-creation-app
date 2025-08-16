@@ -23,8 +23,7 @@ import {
   Alert,
   Link,
 } from '@mui/material';
-import { Delete as DeleteIcon, Download as DownloadIcon, Upload as UploadIcon } from '@mui/icons-material';
-import { importUnlinkedWords } from '../utils/unlinkedWords.js';
+import { Delete as DeleteIcon } from '@mui/icons-material';
 import { useUnlinkedWords } from '../hooks/useUnlinkedWords.js';
 import { convertReferenceToUltUrl, convertTwLinkToUrl } from '../utils/urlConverters.js';
 
@@ -55,76 +54,6 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
     } catch (error) {
       console.error('Failed to remove unlinked word:', error);
     }
-  };
-
-  /**
-   * Handle exporting unlinked words to JSON
-   */
-  const handleExport = () => {
-    if (activeUnlinkedWords.length === 0) {
-      alert('No unlinked words to export.');
-      return;
-    }
-
-    // Create export data with clean structure (only export non-removed words)
-    const exportData = activeUnlinkedWords.map((word) => ({
-      book: word.book,
-      reference: word.reference,
-      origWords: word.origWords,
-      twLink: word.twLink,
-      glQuote: word.glQuote,
-      dateAdded: word.dateAdded,
-    }));
-
-    // Create and download file
-    const dataStr = JSON.stringify(exportData, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-
-    const exportFileDefaultName = `unlinked-words-${new Date().toISOString().split('T')[0]}.json`;
-
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
-  };
-
-  /**
-   * Handle importing unlinked words from JSON file
-   */
-  const handleImport = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const importData = JSON.parse(e.target.result);
-        const result = importUnlinkedWords(importData);
-
-        // Refresh the display
-        setUnlinkedWords(getUnlinkedWords());
-
-        // Notify parent that unlinked words changed
-        if (onUnlinkedWordsChange) {
-          onUnlinkedWordsChange();
-        }
-
-        // Show result to user
-        alert(`Import completed!\nAdded: ${result.added} words\nSkipped (duplicates): ${result.skipped} words\nTotal processed: ${result.total} words`);
-      } catch (error) {
-        console.error('Import error:', error);
-        alert('Failed to import file. Please ensure it is a valid JSON file with the correct format.');
-      }
-    };
-
-    reader.onerror = () => {
-      alert('Failed to read the uploaded file.');
-    };
-
-    reader.readAsText(file);
-
-    // Reset the file input
-    event.target.value = '';
   };
 
   return (
@@ -286,41 +215,7 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
         )}
       </DialogContent>
 
-      <DialogActions sx={{ justifyContent: 'space-between', p: 2 }}>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          {/* Export Button */}
-          <Button
-            onClick={handleExport}
-            startIcon={<DownloadIcon />}
-            variant="outlined"
-            disabled={activeUnlinkedWords.length === 0}
-            sx={{
-              color: '#1976d2',
-              borderColor: '#1976d2',
-              '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
-            }}
-          >
-            Export JSON
-          </Button>
-
-          {/* Import Button */}
-          <input accept=".json" style={{ display: 'none' }} id="import-file-input" type="file" onChange={handleImport} />
-          <label htmlFor="import-file-input">
-            <Button
-              component="span"
-              startIcon={<UploadIcon />}
-              variant="outlined"
-              sx={{
-                color: '#1976d2',
-                borderColor: '#1976d2',
-                '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
-              }}
-            >
-              Import JSON
-            </Button>
-          </label>
-        </Box>
-
+      <DialogActions sx={{ justifyContent: 'flex-end', p: 2 }}>
         <Button onClick={onClose} variant="contained">
           Close
         </Button>
