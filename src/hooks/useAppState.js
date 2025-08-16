@@ -63,7 +63,6 @@ export const useAppState = () => {
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showOnlySixColumns, setShowOnlySixColumns] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'raw'
   const [showExistingTwlTextArea, setShowExistingTwlTextArea] = useState(false);
   const [existingTwlValid, setExistingTwlValid] = useState(true);
@@ -175,7 +174,6 @@ export const useAppState = () => {
     existingTwlContentWithGlQuotes,
     loading,
     error,
-    showOnlySixColumns,
     viewMode,
     showExistingTwlTextArea,
     existingTwlValid,
@@ -187,7 +185,6 @@ export const useAppState = () => {
     setExistingTwlContentWithGLQuotes,
     setLoading,
     setError,
-    setShowOnlySixColumns,
     setViewMode,
     setShowExistingTwlTextArea,
     setExistingTwlValid,

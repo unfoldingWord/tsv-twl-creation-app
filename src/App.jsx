@@ -88,7 +88,6 @@ function App() {
     existingTwlContentWithGLQuotes,
     loading,
     error,
-    showOnlySixColumns,
     viewMode,
     showExistingTwlTextArea,
     existingTwlValid,
@@ -99,7 +98,6 @@ function App() {
     setExistingTwlContentWithGLQuotes,
     setLoading,
     setError,
-    setShowOnlySixColumns,
     setViewMode,
     setShowExistingTwlTextArea,
     setExistingTwlValid,
@@ -114,7 +112,7 @@ function App() {
   const { addUnlinkedWord } = useUnlinkedWords();
 
   // Process TWL content based on column visibility setting
-  const processedTsvContent = useMemo(() => processTsvContent(twlContent, showOnlySixColumns), [twlContent, showOnlySixColumns]);
+  const processedTsvContent = useMemo(() => processTsvContent(twlContent), [twlContent]);
 
   // Table data management (now just parsing, no independent state)
   const { tableData } = useTableData(processedTsvContent);
@@ -612,15 +610,8 @@ function App() {
 
     handleDownloadMenuClose();
 
-    const contentString = typeof twlContent === 'string' ? twlContent : String(twlContent);
-    const lines = contentString.split('\n');
-    const processedLines = lines.map((line) => {
-      const columns = line.split('\t');
-      return columns.slice(0, 6).join('\t');
-    });
-
-    const finalContent = processedLines.join('\n');
-    const blob = new Blob([finalContent], { type: 'text/tab-separated-values' });
+    const tsvContentOnly6Columns = processTsvContent(twlContent, true); // Just get first 6 columns
+    const blob = new Blob([tsvContentOnly6Columns], { type: 'text/tab-separated-values' });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement('a');
@@ -640,8 +631,7 @@ function App() {
 
     handleDownloadMenuClose();
 
-    const contentToDownload = processTsvContent(twlContent, false); // false = show all columns
-    const blob = new Blob([contentToDownload], { type: 'text/tab-separated-values' });
+    const blob = new Blob([twlContent], { type: 'text/tab-separated-values' });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement('a');
@@ -893,17 +883,12 @@ function App() {
 
                 {/* Controls */}
                 <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-                  <FormControlLabel
-                    control={<Checkbox checked={showOnlySixColumns} onChange={(e) => setShowOnlySixColumns(e.target.checked)} color="primary" />}
-                    label="Hide the Extra Columns"
-                  />
-
                   <ToggleButtonGroup value={viewMode} exclusive onChange={handleViewModeChange} size="small">
                     <ToggleButton value="table">Table View</ToggleButton>
-                    <ToggleButton value="raw">Raw Text {showOnlySixColumns ? <span>(Read-Only)</span> : <span>(Edit Mode)</span>}</ToggleButton>
+                    <ToggleButton value="raw">Raw Text</ToggleButton>
                   </ToggleButtonGroup>
 
-                  {viewMode === 'raw' && !showOnlySixColumns && (
+                  {viewMode === 'raw' && (
                     <Button
                       onClick={handleSave}
                       startIcon={<SaveIcon />}
@@ -1031,11 +1016,10 @@ function App() {
                       onDisambiguationClick={handleDisambiguationClick}
                       onClearDisambiguation={handleClearDisambiguation}
                       onReferenceClick={handleReferenceClick}
-                      showOnlySixColumns={showOnlySixColumns}
                     />
                   ) : (
                     <>
-                      {!showOnlySixColumns && hasBackup && (
+                      {hasBackup && (
                         <Box sx={{ mb: 1 }}>
                           <Button
                             onClick={handleUndo}
@@ -1055,11 +1039,8 @@ function App() {
                       )}
                       <textarea
                         value={processedTsvContent}
-                        readOnly={showOnlySixColumns}
                         onChange={(e) => {
-                          if (!showOnlySixColumns) {
-                            handleRawTextChange(e.target.value);
-                          }
+                          handleRawTextChange(e.target.value);
                         }}
                         style={{
                           width: '100%',
@@ -1070,7 +1051,7 @@ function App() {
                           borderRadius: '4px',
                           padding: '8px',
                           resize: 'vertical',
-                          backgroundColor: showOnlySixColumns ? '#f5f5f5' : 'white',
+                          backgroundColor: 'white',
                         }}
                       />
                     </>

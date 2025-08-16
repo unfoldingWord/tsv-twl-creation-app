@@ -35,7 +35,7 @@ import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConvert
 import { truncateContextAroundWord } from '../utils/tsvUtils.js';
 import { parseDisambiguationOptions, renderDisambiguationText } from '../utils/disambiguationUtils.js';
 
-const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambiguationClick, onReferenceClick, onClearDisambiguation, showOnlySixColumns = false }) => {
+const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambiguationClick, onReferenceClick, onClearDisambiguation }) => {
   // State for pagination, search, and filtering
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
@@ -49,10 +49,6 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
   if (!tableData || !tableData.headers.length) {
     return <div>No data to display</div>;
   }
-
-  // Determine which columns to display
-  const displayHeaders = showOnlySixColumns ? tableData.headers.slice(0, 6) : tableData.headers;
-  const showActions = !showOnlySixColumns; // Only show actions when not limiting columns
 
   // Find column indices for search and filtering
   const referenceIndex = tableData.headers.findIndex((header) => header === 'Reference');
@@ -295,9 +291,11 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow>
-              {showActions && <TableCell sx={{ width: '100px', textAlign: 'center' }}>Actions</TableCell>}
-              {displayHeaders.map((header, index) => (
-                <TableCell key={index}>{header}</TableCell>
+              {<TableCell sx={{ width: '100px', textAlign: 'center' }}>Actions</TableCell>}
+              {tableData.headers.map((header, index) => (
+                <TableCell key={index} sx={{ fontWeight: index > 5 ? 'normal' : 'bold', fontSize: index > 5 ? '1em' : '1.2em', color: index > 5 ? 'grey' : 'black' }}>
+                  {header}
+                </TableCell>
               ))}
             </TableRow>
           </TableHead>
@@ -305,7 +303,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
             {paginatedRows.map((row, rowIndex) => (
               <TableRow key={`${page}-${rowIndex}`} hover>
                 {/* Actions Column - only show when actions are enabled */}
-                {showActions && (
+                {
                   <TableCell sx={{ width: '100px', textAlign: 'center' }}>
                     <Tooltip title="Delete just this one TWL">
                       <IconButton
@@ -320,7 +318,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="Unlink this TWL (i.e. never match this `OrigWords` to this `TW` article again, removing this one and others in this list with the same `OrigWords` and `TWLink`. Can be managed via the Unlinked Words Manager above)">
+                    <Tooltip title="Unlink this Word: This `OrigWords` will never be linked to this `TW` article again, removing this one and others in this list with the same `OrigWords` and `TWLink`. Can be managed via the Unlinked Words Manager above.">
                       <IconButton
                         onClick={() => onUnlinkRow(getActualRowIndex(rowIndex))}
                         size="small"
@@ -333,11 +331,11 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                       </IconButton>
                     </Tooltip>
                   </TableCell>
-                )}
+                }
 
                 {/* Display only the specified columns */}
-                {(showOnlySixColumns ? row.slice(0, 6) : row).map((cell, cellIndex) => {
-                  const headerName = displayHeaders[cellIndex];
+                {row.map((cell, cellIndex) => {
+                  const headerName = tableData.headers[cellIndex];
                   const isTWLinkColumn = headerName === 'TWLink';
                   const isReferenceColumn = headerName === 'Reference';
                   const isContextColumn = headerName === 'Context';
@@ -409,10 +407,10 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                   }
 
                   // Disambiguation column with clickable options (only when actions are enabled)
-                  if (isDisambiguationColumn && cell && showActions) {
+                  if (isDisambiguationColumn && cell) {
                     // Find the TWLink column value for this row
-                    const twLinkIndex = displayHeaders.findIndex((h) => h === 'TWLink');
-                    const currentTWLink = twLinkIndex !== -1 ? (showOnlySixColumns ? row.slice(0, 6) : row)[twLinkIndex] : '';
+                    const twLinkIndex = tableData.headers.findIndex((h) => h === 'TWLink');
+                    const currentTWLink = twLinkIndex !== -1 ? row[twLinkIndex] : '';
 
                     const parseResult = parseDisambiguationOptions(cell, currentTWLink, (newDisambiguation, newTWLink) => {
                       onDisambiguationClick(getActualRowIndex(rowIndex), cellIndex, newDisambiguation, newTWLink);
@@ -478,7 +476,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                   }
 
                   // Handle disambiguation column with content but no clickable options
-                  if (isDisambiguationColumn && cell && showActions) {
+                  if (isDisambiguationColumn && cell) {
                     return (
                       <TableCell key={cellIndex} sx={{ display: 'flex', alignItems: 'center', gap: 1, padding: '4px 8px' }}>
                         {onClearDisambiguation && (
