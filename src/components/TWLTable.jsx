@@ -320,7 +320,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="Unlink this TWL (i.e. never match this this `OrigWords` to this `TW` article again, removing this one and others in this list with the same `OrigWords` and `TWLink`. Can be managed via the Unlinked Words Manager above)">
+                    <Tooltip title="Unlink this TWL (i.e. never match this `OrigWords` to this `TW` article again, removing this one and others in this list with the same `OrigWords` and `TWLink`. Can be managed via the Unlinked Words Manager above)">
                       <IconButton
                         onClick={() => onUnlinkRow(getActualRowIndex(rowIndex))}
                         size="small"
