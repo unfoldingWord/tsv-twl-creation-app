@@ -339,6 +339,36 @@ function App() {
   };
 
   /**
+   * Handle clearing disambiguation content
+   */
+  const handleClearDisambiguation = (rowIndex, cellIndex) => {
+    if (!twlContent) return;
+
+    // Create backup before making changes
+    createBackup();
+
+    const lines = twlContent.split('\n');
+    if (lines.length === 0) return;
+
+    const dataRowIndex = rowIndex + 1; // Add 1 to skip header row
+
+    if (dataRowIndex >= lines.length) return;
+
+    // Parse the target row
+    const row = lines[dataRowIndex].split('\t');
+
+    // Clear the disambiguation field
+    row[cellIndex] = '';
+
+    // Update the content
+    lines[dataRowIndex] = row.join('\t');
+    const newContent = lines.join('\n');
+    setTwlContent(newContent);
+    // Save to localStorage after clearing disambiguation
+    saveTwlContent(newContent);
+  };
+
+  /**
    * Handle raw text changes (no automatic backup)
    */
   const handleRawTextChange = (newContent) => {
@@ -999,6 +1029,7 @@ function App() {
                       onDeleteRow={handleDeleteRow}
                       onUnlinkRow={handleUnlinkRow}
                       onDisambiguationClick={handleDisambiguationClick}
+                      onClearDisambiguation={handleClearDisambiguation}
                       onReferenceClick={handleReferenceClick}
                       showOnlySixColumns={showOnlySixColumns}
                     />

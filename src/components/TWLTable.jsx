@@ -35,7 +35,7 @@ import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConvert
 import { truncateContextAroundWord } from '../utils/tsvUtils.js';
 import { parseDisambiguationOptions, renderDisambiguationText } from '../utils/disambiguationUtils.js';
 
-const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambiguationClick, onReferenceClick, showOnlySixColumns = false }) => {
+const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambiguationClick, onReferenceClick, onClearDisambiguation, showOnlySixColumns = false }) => {
   // State for pagination, search, and filtering
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
@@ -422,39 +422,86 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                       const elements = renderDisambiguationText(cell, parseResult);
 
                       return (
-                        <TableCell key={cellIndex}>
-                          {elements.map((element, elemIndex) => {
-                            if (element.type === 'clickable') {
-                              return (
-                                <React.Fragment key={elemIndex}>
-                                  <span
-                                    onClick={async (e) => {
-                                      // Change cursor to wait on click
-                                      e.target.style.cursor = 'wait';
-                                      await new Promise((resolve) => setTimeout(resolve, 100));
-                                      element.onClick();
-                                    }}
-                                    style={{
-                                      color: '#1976d2',
-                                      textDecoration: 'underline',
-                                      cursor: 'pointer',
-                                    }}
-                                  >
-                                    {element.content}
-                                  </span>
-                                </React.Fragment>
-                              );
-                            } else {
-                              return (
-                                <React.Fragment key={elemIndex}>
-                                  <span style={element.isSelected ? { fontWeight: 'bold', color: '#333' } : {}}>{element.content}</span>
-                                </React.Fragment>
-                              );
-                            }
-                          })}
+                        <TableCell key={cellIndex} sx={{ display: 'flex', alignItems: 'center', gap: 1, padding: '4px 8px' }}>
+                          {onClearDisambiguation && (
+                            <Tooltip title="Mark as done (will remove these choices)" arrow>
+                              <Checkbox
+                                checked={false}
+                                size="small"
+                                sx={{
+                                  padding: '2px',
+                                  '& .MuiSvgIcon-root': {
+                                    fontSize: '0.8rem',
+                                  },
+                                }}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  onClearDisambiguation(getActualRowIndex(rowIndex), cellIndex);
+                                }}
+                              />
+                            </Tooltip>
+                          )}
+                          <Box sx={{ flex: 1 }}>
+                            {elements.map((element, elemIndex) => {
+                              if (element.type === 'clickable') {
+                                return (
+                                  <React.Fragment key={elemIndex}>
+                                    <span
+                                      onClick={async (e) => {
+                                        // Change cursor to wait on click
+                                        e.target.style.cursor = 'wait';
+                                        await new Promise((resolve) => setTimeout(resolve, 100));
+                                        element.onClick();
+                                      }}
+                                      style={{
+                                        color: '#1976d2',
+                                        textDecoration: 'underline',
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      {element.content}
+                                    </span>
+                                  </React.Fragment>
+                                );
+                              } else {
+                                return (
+                                  <React.Fragment key={elemIndex}>
+                                    <span style={element.isSelected ? { fontWeight: 'bold', color: '#333' } : {}}>{element.content}</span>
+                                  </React.Fragment>
+                                );
+                              }
+                            })}
+                          </Box>
                         </TableCell>
                       );
                     }
+                  }
+
+                  // Handle disambiguation column with content but no clickable options
+                  if (isDisambiguationColumn && cell && showActions) {
+                    return (
+                      <TableCell key={cellIndex} sx={{ display: 'flex', alignItems: 'center', gap: 1, padding: '4px 8px' }}>
+                        {onClearDisambiguation && (
+                          <Tooltip title="Mark as done (clears disambiguation)" arrow>
+                            <Checkbox
+                              checked={false}
+                              size="small"
+                              sx={{
+                                padding: '2px',
+                                '& .MuiSvgIcon-root': {
+                                  fontSize: '0.8rem',
+                                },
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                onClearDisambiguation(getActualRowIndex(rowIndex), cellIndex);
+                              }}
+                            />
+                          </Tooltip>
+                        )}
+                        <Box sx={{ flex: 1 }}>{cell}</Box>
+                      </TableCell>
+                    );
                   }
 
                   // Default cell rendering
