@@ -39,8 +39,8 @@ importers:
         specifier: ^1.1.9
         version: 1.1.9(@babel/core@7.28.3)
       twl-generator:
-        specifier: ^1.2.2
-        version: 1.2.2(react@18.3.1)
+        specifier: ^1.2.6
+        version: 1.2.6(react@18.3.1)
     devDependencies:
       '@types/react':
         specifier: ^18.2.66
@@ -2531,8 +2531,8 @@ packages:
   tsv-quote-converters@1.1.9:
     resolution: {integrity: sha512-hTuG6meEcoFe7lF3awKCQlZPyGR703Ow5Cn+xhf4LiV/go/fFa9e659RHM3DRV9xuDMklLiqGBQpA+VWIvIY4Q==}
 
-  twl-generator@1.2.2:
-    resolution: {integrity: sha512-ZJjtIc83kIiVjG+7rwRz/3Rt82scgniwbNptXAYtuI62SqSkDrxfcCJY1a6/Ord6vADbNvHLeQy3wfg52FWjkg==}
+  twl-generator@1.2.6:
+    resolution: {integrity: sha512-IaP0bm0PyO3YcPBELrJ+MB+BF227fGGnKPnpi2D9HdeSD0U6kYpevZWApy/+aMaB1ngiGayNPRyzkAQj0jzcuw==}
     engines: {node: '>=18.0.0'}
     hasBin: true
     peerDependencies:
@@ -5935,7 +5935,7 @@ snapshots:
       - debug
       - supports-color
 
-  twl-generator@1.2.2(react@18.3.1):
+  twl-generator@1.2.6(react@18.3.1):
     dependencies:
       jszip: 3.10.1
     optionalDependencies:

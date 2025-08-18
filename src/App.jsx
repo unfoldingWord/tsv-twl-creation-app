@@ -33,6 +33,11 @@ import {
   Button,
   Menu,
   MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Link,
 } from '@mui/material';
 import {
   ContentPaste as PasteIcon,
@@ -42,6 +47,7 @@ import {
   Save as SaveIcon,
   ArrowDropDown as ArrowDropDownIcon,
   ManageAccounts as ManageIcon,
+  CloudUpload as CloudUploadIcon,
 } from '@mui/icons-material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -65,6 +71,7 @@ import {
 } from './utils/tsvUtils.js';
 import { convertReferenceToTnUrl } from './utils/urlConverters.js';
 import { filterUnlinkedWords, removeUnlinkedWordByContent, getUnlinkedWords } from './utils/unlinkedWords.js';
+import { getUserIdentifier } from './utils/userUtils.js';
 import { useUnlinkedWords } from './hooks/useUnlinkedWords.js';
 
 // External TWL processing libraries
@@ -143,6 +150,17 @@ function App() {
   // Unlinked words dialog state
   const [unlinkedWordsDialogOpen, setUnlinkedWordsDialogOpen] = useState(false);
 
+  // DCS commit modal state
+  const [commitModalOpen, setCommitModalOpen] = useState(false);
+  const [commitForm, setCommitForm] = useState({
+    name: '',
+    email: '',
+    message: '',
+    errors: {},
+    submitting: false,
+    result: null,
+  });
+
   // Handle download menu open/close
   const handleDownloadMenuClick = (event) => {
     setDownloadMenuAnchor(event.currentTarget);
@@ -161,6 +179,137 @@ function App() {
 
   const handleUnlinkedWordsDialogClose = () => {
     setUnlinkedWordsDialogOpen(false);
+  };
+
+  /**
+   * Handle opening/closing DCS commit modal
+   */
+  const handleCommitModalOpen = () => {
+    // Load saved credentials from localStorage
+    const savedName = localStorage.getItem('dcs-commit-name') || '';
+    const savedEmail = localStorage.getItem('dcs-commit-email') || '';
+    setCommitForm({
+      name: savedName,
+      email: savedEmail,
+      message: '',
+      errors: {},
+      submitting: false,
+      result: null,
+    });
+    setCommitModalOpen(true);
+  };
+
+  const handleCommitModalClose = () => {
+    setCommitModalOpen(false);
+    setCommitForm((prev) => ({
+      ...prev,
+      submitting: false,
+      result: null,
+      errors: {},
+    }));
+  };
+
+  /**
+   * Handle form input changes
+   */
+  const handleCommitFormChange = (field, value) => {
+    setCommitForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  /**
+   * Validate email format
+   */
+  const isValidEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  /**
+   * Handle DCS commit submission
+   */
+  const handleCommitSubmit = async () => {
+    const { name, email, message } = commitForm;
+
+    // Clear previous errors
+    setCommitForm((prev) => ({ ...prev, errors: {} }));
+
+    // Validation
+    const errors = {};
+    if (!name || name.trim().length < 3) {
+      errors.name = 'Name must be at least 3 characters long';
+    }
+
+    if (!email || !isValidEmail(email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+
+    if (!selectedBook?.value) {
+      errors.general = 'Please select a book first';
+    }
+
+    if (!twlContent) {
+      errors.general = 'No TWL content to commit';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setCommitForm((prev) => ({ ...prev, errors }));
+      return;
+    }
+
+    // Set submitting state
+    setCommitForm((prev) => ({ ...prev, submitting: true, result: null }));
+
+    try {
+      // Save credentials to localStorage
+      localStorage.setItem('dcs-commit-name', name.trim());
+      localStorage.setItem('dcs-commit-email', email.trim());
+
+      // Get 6-column TSV content
+      const sixColumnContent = processTsvContent(twlContent, true);
+      const userID = getUserIdentifier();
+
+      const response = await fetch('/.netlify/functions/commit-to-dcs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          book: selectedBook.value,
+          name: name.trim(),
+          email: email.trim(),
+          message: message.trim() || undefined,
+          userID,
+          content: sixColumnContent,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to commit to DCS');
+      }
+
+      // Set success result
+      setCommitForm((prev) => ({
+        ...prev,
+        submitting: false,
+        result: {
+          success: true,
+          message: result.message,
+          pullRequestUrl: result.pullRequestUrl,
+        },
+      }));
+    } catch (err) {
+      // Set error result
+      setCommitForm((prev) => ({
+        ...prev,
+        submitting: false,
+        result: {
+          success: false,
+          message: `Failed to commit to DCS: ${err.message}`,
+        },
+      }));
+    }
   };
 
   /**
@@ -561,42 +710,24 @@ function App() {
 
       let existingTWLs = '';
       if (existingTwlContent.trim()) {
-        if (!existingTwlContentWithGLQuotes) {
-          const params = {
-            bibleLinks: ['unfoldingWord/en_ult/master'],
-            bookCode: selectedBook.value,
-            tsvContent: existingTwlContent.trim(),
-            trySeparatorsAndOccurrences: true,
-            quiet: false,
-          };
-
-          const addGLQuoteColsResult = await addGLQuoteCols(params);
-
-          if (!addGLQuoteColsResult || typeof addGLQuoteColsResult !== 'object' || !addGLQuoteColsResult.output) {
-            throw new Error(`addGLQuoteCols failed: ${JSON.stringify(addGLQuoteColsResult)}`);
-          }
-
-          existingTWLs = addGLQuoteColsResult.output;
-          // Rearrange columns: move columns 6 and 7 to the end, switching with column 8
-          const lines = existingTWLs.split('\n');
-          existingTWLs = lines
-            .map((line) => {
-              if (!line.trim()) return line;
-              const columns = line.split('\t');
-              if (columns.length >= 8) {
-                // Move columns 6,7 to end and column 8 to position 6
-                const [col1, col2, col3, col4, col5, col6, col7, col8, ...rest] = columns;
-                return [col1, col2, col3, col4, col5, col8, col6, col7, ...rest].join('\t');
-              }
-              return line;
-            })
-            .join('\n');
-          setExistingTwlContentWithGLQuotes(existingTWLs);
-        } else {
-          existingTWLs = existingTwlContentWithGLQuotes;
-        }
-        generatedTwl = mergeExistingTwls(generatedTwl, existingTWLs);
+        generatedTwl = mergeExistingTwls(generatedTwl, existingTwlContent.trim());
       }
+
+      const params2 = {
+        bibleLinks: ['unfoldingWord/en_ult/master'],
+        bookCode: selectedBook.value,
+        tsvContent: generatedTwl,
+        trySeparatorsAndOccurrences: true,
+        quiet: false,
+      };
+
+      const addGLQuoteColsResult = await addGLQuoteCols(params2);
+
+      if (!addGLQuoteColsResult || typeof addGLQuoteColsResult !== 'object' || !addGLQuoteColsResult.output) {
+        throw new Error(`addGLQuoteCols failed: ${JSON.stringify(addGLQuoteColsResult)}`);
+      }
+
+      generatedTwl = addGLQuoteColsResult.output;
 
       // Ensure all IDs are unique and properly formatted
       generatedTwl = ensureUniqueIds(generatedTwl);
@@ -1068,6 +1199,21 @@ function App() {
                   >
                     Edit twl_{selectedBook?.value?.toUpperCase() || 'BOOK'}.tsv on DCS
                   </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<CloudUploadIcon />}
+                    onClick={handleCommitModalOpen}
+                    disabled={!twlContent || !selectedBook}
+                    sx={{
+                      ml: 2,
+                      color: '#4caf50',
+                      borderColor: '#4caf50',
+                      textTransform: 'none',
+                      '&:hover': { backgroundColor: 'rgba(76, 175, 80, 0.04)' },
+                    }}
+                  >
+                    Commit to DCS
+                  </Button>
                 </Box>
 
                 {/* Content Display */}
@@ -1127,6 +1273,80 @@ function App() {
           )}
         </Box>
       </Box>
+
+      {/* Commit to DCS Modal */}
+      <Dialog open={commitModalOpen} onClose={handleCommitModalClose} maxWidth="sm" fullWidth>
+        <DialogTitle>Commit TWL to DCS</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Your Name"
+              type="text"
+              fullWidth
+              variant="outlined"
+              value={commitForm.name}
+              onChange={(e) => setCommitForm((prev) => ({ ...prev, name: e.target.value }))}
+              error={!!commitForm.errors.name}
+              helperText={commitForm.errors.name}
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              margin="dense"
+              label="Your Email"
+              type="email"
+              fullWidth
+              variant="outlined"
+              value={commitForm.email}
+              onChange={(e) => setCommitForm((prev) => ({ ...prev, email: e.target.value }))}
+              error={!!commitForm.errors.email}
+              helperText={commitForm.errors.email}
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              margin="dense"
+              label="Commit Message (optional)"
+              type="text"
+              fullWidth
+              variant="outlined"
+              multiline
+              rows={3}
+              value={commitForm.message}
+              onChange={(e) => setCommitForm((prev) => ({ ...prev, message: e.target.value }))}
+              placeholder={`Update TWL for ${selectedBook?.value?.toUpperCase() || 'BOOK'}`}
+            />
+            {commitForm.submitting && (
+              <Box sx={{ mt: 2, textAlign: 'center' }}>
+                <CircularProgress size={24} />
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Creating commit and pull request...
+                </Typography>
+              </Box>
+            )}
+            {commitForm.result && (
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="body2" color={commitForm.result.success ? 'success.main' : 'error.main'}>
+                  {commitForm.result.message}
+                </Typography>
+                {commitForm.result.success && commitForm.result.pullRequestUrl && (
+                  <Button variant="text" size="small" href={commitForm.result.pullRequestUrl} target="_blank" rel="noopener noreferrer" sx={{ mt: 1 }}>
+                    View Pull Request
+                  </Button>
+                )}
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCommitModalClose} disabled={commitForm.submitting}>
+            Cancel
+          </Button>
+          <Button onClick={handleCommitSubmit} variant="contained" disabled={commitForm.submitting || !commitForm.name.trim() || !commitForm.email.trim()}>
+            {commitForm.submitting ? 'Committing...' : 'Commit & Create PR'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Unlinked Words Manager Dialog */}
       <UnlinkedWordsManager open={unlinkedWordsDialogOpen} onClose={handleUnlinkedWordsDialogClose} onUnlinkedWordsChange={handleUnlinkedWordsChange} />

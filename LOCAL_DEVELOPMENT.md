@@ -25,9 +25,15 @@ TWL_AWS_ACCESS_KEY_ID=your_access_key_here
 TWL_AWS_SECRET_ACCESS_KEY=your_secret_key_here
 TWL_AWS_REGION=us-east-1
 TWL_DYNAMODB_TABLE_NAME=twl-unlinked-words
+DCS_TOKEN=your_dcs_personal_access_token_here
+DCS_HOST=git.door43.org
 ```
 
 ⚠️ **Important**: Replace the placeholder values with your actual AWS credentials from the IAM user you created.
+
+⚠️ **DCS Token**: For the "Commit to DCS" feature, you need a DCS Personal Access Token with `repo` permissions. Create one at [DCS Settings > Applications](https://git.door43.org/user/settings/applications).
+
+⚠️ **DCS Host**: The DCS_HOST should be set to `git.door43.org` for the official DCS instance, or your custom Gitea instance domain.
 
 ### 3. Available Development Commands
 

@@ -276,8 +276,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
           sx={{ '& .MuiTablePagination-toolbar': { minHeight: '52px' } }}
         />
         <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'right' }}>
-          Showing {paginatedRows.length} of {filteredRows.length} rows
-          {searchTerm && ` (filtered from ${tableData.rows.length} total)`}
+          {filteredRows.length !== tableData.rows.length && `Matches ${filteredRows.length} of the ${tableData.rows.length} rows.`}
         </Typography>
       </Box>
 
@@ -525,6 +524,20 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
           </TableBody>
         </Table>
       </TableContainer>
+
+      <Box sx={{ mt: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+        <TablePagination
+          component="div"
+          count={filteredRows.length}
+          page={page}
+          onPageChange={handleChangePage}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          rowsPerPageOptions={[10, 25, 50, 100, 250, 500, 1000]}
+          labelDisplayedRows={({ from, to, count }) => `${from}-${to} of ${count}`}
+          sx={{ '& .MuiTablePagination-toolbar': { minHeight: '52px' } }}
+        />
+      </Box>
     </Box>
   );
 };

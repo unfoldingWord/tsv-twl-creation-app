@@ -277,7 +277,7 @@ export const truncateContextAroundWord = (contextText) => {
     parts.push(afterWords.join(' '));
   }
 
-  return parts.join(' ');
+  return parts.join(' ').replace(/] ([\.\?:,’”])/g, ']$1');
 };
 
 /**
