@@ -284,7 +284,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
       <TableContainer
         component={Paper}
         sx={{
-          maxHeight: '600px',
+          maxHeight: '800px',
           border: '1px solid #ccc',
           '& .MuiTableCell-root': {
             fontSize: '12px',
@@ -525,7 +525,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
         </Table>
       </TableContainer>
 
-      <Box sx={{ mt: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+      <Box sx={{ mt: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <TablePagination
           component="div"
           count={filteredRows.length}
