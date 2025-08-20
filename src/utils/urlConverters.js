@@ -5,7 +5,7 @@
 /**
  * Convert rc:// links to Door43 URLs
  */
-export const convertRcLinkToUrl = (rcLink) => {
+export const convertRcLinkToUrl = (rcLink, dcsHost = 'git.door43.org') => {
   if (!rcLink || !rcLink.startsWith('rc://')) {
     return null;
   }
@@ -21,7 +21,7 @@ export const convertRcLinkToUrl = (rcLink) => {
     if (pathParts.length < 3) return null;
 
     const lastThreeParts = pathParts.slice(-3).join('/');
-    return `https://git.door43.org/unfoldingWord/en_tw/src/master/${lastThreeParts}.md`;
+    return `https://${dcsHost}/unfoldingWord/en_tw/src/master/${lastThreeParts}.md`;
   } catch (error) {
     console.warn('Error converting rc:// link:', rcLink, error);
     return null;
@@ -71,7 +71,7 @@ export const convertReferenceToUltUrl = (reference, book) => {
 /**
  * Convert TWLink to Translation Words URL for unlinked words manager
  */
-export const convertTwLinkToUrl = (twLink) => {
+export const convertTwLinkToUrl = (twLink, dcsHost = 'git.door43.org') => {
   if (!twLink) {
     return null;
   }
@@ -87,7 +87,7 @@ export const convertTwLinkToUrl = (twLink) => {
     if (pathParts.length < 3) return null;
 
     const lastThreeParts = pathParts.slice(-3).join('/');
-    return `https://git.door43.org/unfoldingWord/en_tw/src/master/${lastThreeParts}.md`;
+    return `https://${dcsHost}/unfoldingWord/en_tw/src/master/${lastThreeParts}.md`;
   } catch (error) {
     console.warn('Error converting TWLink to URL:', twLink, error);
     return null;

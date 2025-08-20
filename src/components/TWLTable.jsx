@@ -35,7 +35,7 @@ import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConvert
 import { truncateContextAroundWord } from '../utils/tsvUtils.js';
 import { parseDisambiguationOptions, renderDisambiguationText } from '../utils/disambiguationUtils.js';
 
-const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambiguationClick, onReferenceClick, onClearDisambiguation }) => {
+const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambiguationClick, onReferenceClick, onClearDisambiguation, dcsHost }) => {
   // State for pagination, search, and filtering
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
@@ -329,7 +329,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
 
                   // TWLink column with external links
                   if (isTWLinkColumn && cell) {
-                    const url = convertRcLinkToUrl(cell);
+                    const url = convertRcLinkToUrl(cell, dcsHost);
                     if (url) {
                       return (
                         <TableCell key={cellIndex}>

@@ -30,7 +30,7 @@ import { useUnlinkedWords } from '../hooks/useUnlinkedWords.js';
 import { convertReferenceToUltUrl, convertTwLinkToUrl } from '../utils/urlConverters.js';
 import { getUserIdentifier } from '../utils/userUtils.js';
 
-const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
+const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange, dcsHost }) => {
   const { unlinkedWords, loading, error, removeUnlinkedWord, refreshFromServer, refreshFromLocalStorage } = useUnlinkedWords();
   const [activeTab, setActiveTab] = useState(0); // 0 = My Words, 1 = All Words
   const [sortColumn, setSortColumn] = useState('dateAdded'); // Default sort by Date Added
@@ -268,7 +268,7 @@ const UnlinkedWordsManager = ({ open, onClose, onUnlinkedWordsChange }) => {
                       }}
                     >
                       {(() => {
-                        const twUrl = convertTwLinkToUrl(word.twLink);
+                        const twUrl = convertTwLinkToUrl(word.twLink, dcsHost);
                         return twUrl ? (
                           <Link
                             href={twUrl}

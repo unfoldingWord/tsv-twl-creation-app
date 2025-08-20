@@ -11,6 +11,18 @@ export const useAppState = () => {
   const savedBranch = loadData('selectedBranch') || 'master';
 
   // Core state
+  // Set DCS host based on URL parameter
+  const getInitialDcsHost = () => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('server')) {
+      return params.get('server').toLowerCase() === 'qa' ? 'qa.door43.org' : 'git.door43.org';
+    }
+    if (window.location.hostname === 'localhost') {
+      return 'qa.door43.org';
+    }
+    return 'git.door43.org';
+  };
+  const [dcsHost, setDcsHost] = useState(getInitialDcsHost());
   const [selectedBook, setSelectedBook] = useState(savedBook);
   const [selectedBranch, setSelectedBranch] = useState(savedBranch);
   const [branches, setBranches] = useState([]);
@@ -73,7 +85,7 @@ export const useAppState = () => {
       setBranchesError('');
 
       try {
-        const branchNames = await fetchBranches();
+        const branchNames = await fetchBranches(dcsHost);
         setBranches(branchNames);
       } catch (err) {
         setBranchesError(`Error loading branches: ${err.message}`);
@@ -160,6 +172,7 @@ export const useAppState = () => {
 
   return {
     // State values
+    dcsHost,
     selectedBook,
     selectedBranch,
     branches,

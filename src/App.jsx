@@ -92,6 +92,7 @@ function App() {
   // Custom hooks for state management
   const {
     // State values
+    dcsHost,
     selectedBook,
     selectedBranch,
     branches,
@@ -293,21 +294,14 @@ function App() {
       setCommitForm((prev) => ({
         ...prev,
         submitting: false,
-        result: {
-          success: true,
-          message: result.message,
-          pullRequestUrl: result.pullRequestUrl,
-        },
+        result,
       }));
     } catch (err) {
       // Set error result
       setCommitForm((prev) => ({
         ...prev,
         submitting: false,
-        result: {
-          success: false,
-          message: `Failed to commit to DCS: ${err.message}`,
-        },
+        result,
       }));
     }
   };
@@ -678,7 +672,7 @@ function App() {
       // Fetch USFM content first if not already available
       let usfmToUse = usfmContent;
       if (!usfmToUse.trim()) {
-        usfmToUse = await fetchUSFMContent(selectedBook.value, selectedBranch);
+        usfmToUse = await fetchUSFMContent(selectedBook.value, dcsHost);
         setUsfmContent(usfmToUse);
       }
 
@@ -991,7 +985,7 @@ function App() {
 
                     setLoading(true);
                     try {
-                      const content = await fetchTWLContent(selectedBook.value, selectedBranch);
+                      const content = await fetchTWLContent(selectedBook.value, selectedBranch, dcsHost);
                       handleExistingTwlChange(content);
                     } catch (err) {
                       setError(`Failed to fetch existing TWL: ${err.message}`);
@@ -1181,9 +1175,9 @@ function App() {
                     Copy to Clipboard
                   </Button>
 
-                  <Button
+                  {/* <Button
                     component="a"
-                    href={`https://git.door43.org/unfoldingWord/en_twl/_edit/${selectedBranch}/twl_${selectedBook?.value?.toUpperCase() || 'BOOK'}.tsv`}
+                    href={`https://${dcsHost}/unfoldingWord/en_twl/_edit/${selectedBranch}/twl_${selectedBook?.value?.toUpperCase() || 'BOOK'}.tsv`}
                     target="_blank"
                     rel="noopener noreferrer"
                     variant="outlined"
@@ -1198,7 +1192,7 @@ function App() {
                     }}
                   >
                     Edit twl_{selectedBook?.value?.toUpperCase() || 'BOOK'}.tsv on DCS
-                  </Button>
+                  </Button> */}
                   <Button
                     variant="outlined"
                     startIcon={<CloudUploadIcon />}
@@ -1227,6 +1221,7 @@ function App() {
                       onDisambiguationClick={handleDisambiguationClick}
                       onClearDisambiguation={handleClearDisambiguation}
                       onReferenceClick={handleReferenceClick}
+                      dcsHost={dcsHost}
                     />
                   ) : (
                     <>
@@ -1329,8 +1324,8 @@ function App() {
                 <Typography variant="body2" color={commitForm.result.success ? 'success.main' : 'error.main'}>
                   {commitForm.result.message}
                 </Typography>
-                {commitForm.result.success && commitForm.result.pullRequestUrl && (
-                  <Button variant="text" size="small" href={commitForm.result.pullRequestUrl} target="_blank" rel="noopener noreferrer" sx={{ mt: 1 }}>
+                {commitForm.result.success && commitForm.result.prUrl && (
+                  <Button variant="text" size="small" href={commitForm.result.prUrl} target="_blank" rel="noopener noreferrer" sx={{ mt: 1 }}>
                     View Pull Request
                   </Button>
                 )}
@@ -1342,14 +1337,18 @@ function App() {
           <Button onClick={handleCommitModalClose} disabled={commitForm.submitting}>
             Cancel
           </Button>
-          <Button onClick={handleCommitSubmit} variant="contained" disabled={commitForm.submitting || !commitForm.name.trim() || !commitForm.email.trim()}>
+          <Button
+            onClick={handleCommitSubmit}
+            variant="contained"
+            disabled={commitForm.submitting || !commitForm.name.trim() || !commitForm.email.trim() || commitForm.result?.success}
+          >
             {commitForm.submitting ? 'Committing...' : 'Commit & Create PR'}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Unlinked Words Manager Dialog */}
-      <UnlinkedWordsManager open={unlinkedWordsDialogOpen} onClose={handleUnlinkedWordsDialogClose} onUnlinkedWordsChange={handleUnlinkedWordsChange} />
+      <UnlinkedWordsManager open={unlinkedWordsDialogOpen} onClose={handleUnlinkedWordsDialogClose} onUnlinkedWordsChange={handleUnlinkedWordsChange} dcsHost={dcsHost} />
     </ThemeProvider>
   );
 }

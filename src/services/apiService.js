@@ -7,8 +7,8 @@ import { BibleBookData } from '../common/books.js';
 /**
  * Fetch available branches from the repository
  */
-export const fetchBranches = async () => {
-  const response = await fetch('https://git.door43.org/api/v1/repos/unfoldingWord/en_twl/branches');
+export const fetchBranches = async (dcsHost = "git.door43.org") => {
+  const response = await fetch(`https://${dcsHost}/api/v1/repos/unfoldingWord/en_twl/branches`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch branches: ${response.statusText}`);
@@ -34,12 +34,12 @@ const decodeBase64Content = (base64Content) => {
 /**
  * Fetch USFM content for a specific book and branch
  */
-export const fetchUSFMContent = async (bookValue) => {
+export const fetchUSFMContent = async (bookValue, dcsHost = 'git.door43.org') => {
   const bookData = BibleBookData[bookValue];
   const usfmFileName = bookData.usfm;
 
   const response = await fetch(
-    `https://git.door43.org/api/v1/repos/unfoldingWord/en_ult/contents/${usfmFileName}.usfm?ref=master`
+    `https://${dcsHost}/api/v1/repos/unfoldingWord/en_ult/contents/${usfmFileName}.usfm?ref=master`
   );
 
   if (!response.ok) {
@@ -53,11 +53,11 @@ export const fetchUSFMContent = async (bookValue) => {
 /**
  * Fetch existing TWL content for a specific book and branch
  */
-export const fetchTWLContent = async (bookValue, branch = 'master') => {
+export const fetchTWLContent = async (bookValue, branch = 'master', dcsHost = 'git.door43.org') => {
   const bookCode = bookValue.toUpperCase();
 
   const response = await fetch(
-    `https://git.door43.org/api/v1/repos/unfoldingWord/en_twl/contents/twl_${bookCode}.tsv?ref=${branch}`
+    `https://${dcsHost}/api/v1/repos/unfoldingWord/en_twl/contents/twl_${bookCode}.tsv?ref=${branch}`
   );
 
   if (!response.ok) {
