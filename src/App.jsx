@@ -684,13 +684,12 @@ function App() {
       generatedTwl = addGLQuoteColumns(generatedTwl);
       console.log('Generated TWL (with GLQuote columns):', generatedTwl);
 
-      const params = {
+      const convertResponse = await convertGLQuotes2OLQuotes({
         bibleLinks: [`unfoldingWord/en_ult/master`],
         bookCode: selectedBook.value,
         tsvContent: generatedTwl,
         trySeparatorsAndOccurrences: true,
-      };
-      const convertResponse = await convertGLQuotes2OLQuotes(params);
+      });
 
       if (!convertResponse || typeof convertResponse !== 'object' || !convertResponse.output) {
         throw new Error(`convertGLQuotes2OLQuotes failed: ${JSON.stringify(convertResponse)}`);
@@ -702,20 +701,48 @@ function App() {
 
       // Merge with existing TWL if provided
 
-      let existingTWLs = '';
       if (existingTwlContent.trim()) {
-        generatedTwl = mergeExistingTwls(generatedTwl, existingTwlContent.trim());
+        const addGlQuotesToExisingResults = await addGLQuoteCols({
+          bibleLinks: 'unfoldingWord/en_ult/master',
+          bookCode: selectedBook.value,
+          tsvContent: existingTwlContent.trim(),
+          trySeparatorsAndOccurrences: true,
+        });
+
+        if (!addGlQuotesToExisingResults || typeof addGlQuotesToExisingResults !== 'object' || !addGlQuotesToExisingResults.output) {
+          throw new Error(`addGLQuoteCols failed: ${JSON.stringify(addGlQuotesToExisingResults)}`);
+        }
+
+        const existingTwlContentWithEnglishOrigWords = addGlQuotesToExisingResults.output
+          .split('\n')
+          .filter((row) => row.trim() && row.split('\t').length == 8)
+          .map((row, idx) => {
+            const cols = row.split('\t');
+            if (idx === 0) {
+              return [cols[0], cols[1], cols[2], cols[3], cols[4], cols[7]].join('\t');
+            } else {
+              return [cols[0], cols[1], cols[2], cols[5], cols[6], cols[7]].join('\t');
+            }
+          })
+          .join('\n');
+
+        const convertGl2OlResults = await convertGLQuotes2OLQuotes({
+          bibleLinks: ['unfoldingWord/en_ult/master'],
+          bookCode: selectedBook.value,
+          tsvContent: existingTwlContentWithEnglishOrigWords,
+          trySeparatorsAndOccurrences: true,
+        });
+
+        generatedTwl = mergeExistingTwls(generatedTwl, convertGl2OlResults.output);
       }
 
-      const params2 = {
+      const addGLQuoteColsResult = await addGLQuoteCols({
         bibleLinks: ['unfoldingWord/en_ult/master'],
         bookCode: selectedBook.value,
         tsvContent: generatedTwl,
         trySeparatorsAndOccurrences: true,
         quiet: false,
-      };
-
-      const addGLQuoteColsResult = await addGLQuoteCols(params2);
+      });
 
       if (!addGLQuoteColsResult || typeof addGLQuoteColsResult !== 'object' || !addGLQuoteColsResult.output) {
         throw new Error(`addGLQuoteCols failed: ${JSON.stringify(addGLQuoteColsResult)}`);
