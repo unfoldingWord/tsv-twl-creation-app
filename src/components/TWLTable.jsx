@@ -267,7 +267,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
 
             <FormControlLabel
               control={<Checkbox checked={filters.isInvalidRCLink === true} onChange={(e) => handleFilterChange('isInvalidRCLink', e.target.checked ? true : null)} />}
-              label="Is Invalid TWLink"
+              label="Invalid TWLink"
             />
 
             {/* Only show Merge Status filter if the column exists */}
