@@ -557,8 +557,8 @@ function App() {
     const existing = parseTsv(existingContent, existingHasHeader);
     const existingRows = existing.rows;
 
-    // Add "Already Exists" column to headers if there are existing rows
-    const finalHeaders = existingRows.length > 0 ? [...generatedHeaders, 'Already Exists'] : generatedHeaders;
+    // Add "Merge Status" column to headers if there are existing rows
+    const finalHeaders = existingRows.length > 0 ? [...generatedHeaders, 'Merge Status'] : generatedHeaders;
 
     // Find column indices
     const origWordsIndex = generatedHeaders.findIndex((h) => h === 'OrigWords');

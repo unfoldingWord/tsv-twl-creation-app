@@ -44,11 +44,11 @@ export const isValidExtendedTsvStructure = (content) => {
 
   // Expected headers for 8-9 columns (old format with GLQuote/GLOccurrence)
   const expected8Headers = ['Reference', 'ID', 'Tags', 'OrigWords', 'Occurrence', 'TWLink', 'GLQuote', 'GLOccurrence'];
-  const expected9Headers = [...expected8Headers, 'Already Exists'];
+  const expected9Headers = [...expected8Headers, 'Merge Status'];
 
   // Expected headers for 10-11 columns (new format with Disambiguation and Context)
   const expected10Headers = ['Reference', 'ID', 'Tags', 'OrigWords', 'Occurrence', 'TWLink', 'GLQuote', 'GLOccurrence', 'Disambiguation', 'Context'];
-  const expected11Headers = [...expected10Headers, 'Already Exists'];
+  const expected11Headers = [...expected10Headers, 'Merge Statu'];
 
   // Check if headers match expected format
   let expectedHeaders = [];
@@ -63,7 +63,7 @@ export const isValidExtendedTsvStructure = (content) => {
   } else if (columnCount === 11) {
     expectedHeaders = expected11Headers;
     // For 11-column format, allow data rows to have 10 or 11 columns
-    // (some may be missing the "Already Exists" column)
+    // (some may be missing the "Merge Status" column)
     allowMissingLastColumn = true;
   } else {
     return false;

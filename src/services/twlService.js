@@ -2,18 +2,29 @@
  * TWL (Translation Word List) processing and merging logic
  */
 import { parseTsv, hasHeader, compareReferences } from '../utils/tsvUtils.js';
+import JSZip from 'jszip';
+
+export const fetchTwArchiveZip = async (dcsHost = 'git.door43.org') => {
+  const url = `https://${dcsHost}/unfoldingWord/en_tw/archive/master.zip`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch TW archive: ${response.statusText}`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  const zip = await JSZip.loadAsync(arrayBuffer);
+  return zip;
+};
 
 /**
  * Merge existing TWL content with newly generated TWL content
  * Uses a pointer-based algorithm to maintain proper order
  */
-export const mergeExistingTwls = (generatedContent, existingContent) => {
+export const mergeExistingTwls = async (generatedContent, existingContent, dcsHost = 'git.door43.org') => {
   if (!existingContent.trim()) {
     return generatedContent; // No existing content to merge
   }
 
   // Parse generated content (always has header)
-  console.log(generatedContent);
   const generated = parseTsv(generatedContent, true);
   const generatedHeaders = generated.headers;
   const generatedRows = generated.rows;
@@ -23,8 +34,8 @@ export const mergeExistingTwls = (generatedContent, existingContent) => {
   const existing = parseTsv(existingContent, existingHasHeader);
   const existingRows = existing.rows;
 
-  // Add "Already Exists" column to headers if there are existing rows
-  const finalHeaders = existingRows.length > 0 ? [...generatedHeaders, 'Already Exists'] : generatedHeaders;
+  // Add "Merge Status" column to headers if there are existing rows
+  const finalHeaders = existingRows.length > 0 ? [...generatedHeaders, 'Merge Status'] : generatedHeaders;
 
   // Find column indices
   const origWordsIndex = generatedHeaders.findIndex((h) => h === 'OrigWords');
@@ -38,13 +49,14 @@ export const mergeExistingTwls = (generatedContent, existingContent) => {
   // Helper function to create extended existing row
   const createExtendedExistingRow = (existingRow) => {
     const extendedRow = [...existingRow];
-    while (extendedRow.length < generatedHeaders.length) {
+    while (extendedRow.length < generatedHeaders.length - 1) {
       extendedRow.push('');
     }
-    // Add "x" to "Already Exists" column if there are existing rows
-    if (existingRows.length > 0) {
-      extendedRow.push('x');
-    }
+
+    // Add "N/A" for "Context" column
+    extendedRow.push('N/A');
+    // Add "OLD" to "Merge Status" column
+    extendedRow.push('OLD');
     return extendedRow;
   };
 
@@ -67,12 +79,29 @@ export const mergeExistingTwls = (generatedContent, existingContent) => {
   const updateGeneratedRow = (generatedRow, existingRow) => {
     const updatedRow = [...generatedRow];
     // Replace first 6 columns with existing row data
-    for (let i = 0; i < Math.min(6, existingRow.length); i++) {
+    const generatedTWLink = generatedRow[5];
+    const existingTWLink = existingRow[5];
+
+    for (let i = 0; i < 6; i++) {
       updatedRow[i] = existingRow[i];
     }
-    // Add "x" to "Already Exists" column if there are existing rows
+    if (generatedTWLink != existingTWLink) {
+      let existingArticle = existingTWLink.split('/').slice(-2).join('/');
+      let generatedArticle = generatedTWLink.split('/').slice(-2).join('/');
+
+      let disambiguations = [generatedArticle];
+      if (generatedRow[8].trim()) {
+        disambiguations = generatedRow[8].trim().replace(/^\(/, '').replace(/\)$/, '').split(',').map(d => d.trim());
+      }
+      if (!disambiguations.includes(existingArticle)) {
+        disambiguations.unshift(existingArticle);
+      }
+      updatedRow[8] = `(${disambiguations.join(', ')})`;
+    }
+
+    // Add "BOTH" to "Merge Status" column if this link is in 'B'oth Existing and Generated.
     if (existingRows.length > 0) {
-      updatedRow.push('x');
+      updatedRow.push('BOTH');
     }
     return updatedRow;
   };
@@ -89,7 +118,7 @@ export const mergeExistingTwls = (generatedContent, existingContent) => {
 
       if (compareReferences(generatedRef, existingRef) < 0) {
         // Generated reference is less than existing reference, add it
-        const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRow, ''] : generatedRow;
+        const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRow, 'NEW'] : generatedRow;
         mergedRows.push(extendedGeneratedRow);
         generatedPointer++;
       } else {
@@ -112,7 +141,7 @@ export const mergeExistingTwls = (generatedContent, existingContent) => {
         if (isExactMatch(existingRow, generatedRow)) {
           // Exact match found! Add all generated rows up to this point
           while (generatedPointer < tempGeneratedPointer) {
-            const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRows[generatedPointer], ''] : generatedRows[generatedPointer];
+            const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRows[generatedPointer], 'NEW'] : generatedRows[generatedPointer];
             mergedRows.push(extendedGeneratedRow);
             generatedPointer++;
           }
@@ -141,7 +170,7 @@ export const mergeExistingTwls = (generatedContent, existingContent) => {
 
   // Add any remaining generated rows
   while (generatedPointer < generatedRows.length) {
-    const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRows[generatedPointer], ''] : generatedRows[generatedPointer];
+    const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRows[generatedPointer], 'NEW'] : generatedRows[generatedPointer];
     mergedRows.push(extendedGeneratedRow);
     generatedPointer++;
   }

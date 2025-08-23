@@ -431,7 +431,7 @@ function App() {
 
       if (shouldRemove) {
         removedCount++;
-        console.log(`REMOVING row ${i}: OrigWords="${currentOrigWords}" (norm: "${currentNormalizedOrigWords}"), TWLink="${currentTWLink}"`);
+        console.log(`REMOVING row ${i}: OrigWords="${currepntOrigWords}" (norm: "${currentNormalizedOrigWords}"), TWLink="${currentTWLink}"`);
       } else {
         filteredLines.push(lines[i]);
         // Log first few non-matches to understand what's different
@@ -678,11 +678,9 @@ function App() {
 
       // Generate TWL using external library
       let generatedTwl = await generateTWLWithUsfm(selectedBook.value, usfmToUse);
-      console.log('Generated TWL (initial):', generatedTwl);
 
       // Add GLQuote and GLOccurrence columns
       generatedTwl = addGLQuoteColumns(generatedTwl);
-      console.log('Generated TWL (with GLQuote columns):', generatedTwl);
 
       const convertResponse = await convertGLQuotes2OLQuotes({
         bibleLinks: [`unfoldingWord/en_ult/master`],
@@ -696,8 +694,6 @@ function App() {
       }
 
       generatedTwl = convertResponse.output;
-
-      console.log('Generated TWL (after GL2OL conversion):', generatedTwl);
 
       // Merge with existing TWL if provided
 
@@ -733,7 +729,7 @@ function App() {
           trySeparatorsAndOccurrences: true,
         });
 
-        generatedTwl = mergeExistingTwls(generatedTwl, convertGl2OlResults.output);
+        generatedTwl = await mergeExistingTwls(generatedTwl, convertGl2OlResults.output, dcsHost);
       }
 
       const addGLQuoteColsResult = await addGLQuoteCols({
@@ -752,11 +748,9 @@ function App() {
 
       // Ensure all IDs are unique and properly formatted
       generatedTwl = ensureUniqueIds(generatedTwl);
-      console.log('Generated TWL (with unique IDs):', generatedTwl);
 
       // Filter out unlinked words using local storage data
       generatedTwl = filterUnlinkedWords(generatedTwl);
-      console.log('Generated TWL (after filtering unlinked words):', generatedTwl);
 
       setTwlContent(generatedTwl);
       // Save to localStorage after initial generation (pass content directly)
@@ -1058,7 +1052,7 @@ function App() {
               {existingTwlContent.trim() && !existingTwlValid && (
                 <Alert severity="error" sx={{ mt: 1 }}>
                   Invalid TWL format. Must have exactly 6 columns, or 8-11 columns with proper headers (Reference, ID, Tags, OrigWords, Occurrence, TWLink, GLQuote, GLOccurrence,
-                  [Disambiguation, Context], [Already Exists]).
+                  [Disambiguation, Context], [Merge Status]).
                 </Alert>
               )}
 

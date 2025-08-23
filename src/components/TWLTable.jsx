@@ -34,6 +34,7 @@ import { RxLinkBreak2 as UnlinkIcon } from 'react-icons/rx';
 import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConverters.js';
 import { truncateContextAroundWord } from '../utils/tsvUtils.js';
 import { parseDisambiguationOptions, renderDisambiguationText } from '../utils/disambiguationUtils.js';
+import JSZip from 'jszip';
 
 const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambiguationClick, onReferenceClick, onClearDisambiguation, dcsHost }) => {
   // State for pagination, search, and filtering
@@ -43,8 +44,30 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
   const [filterAnchorEl, setFilterAnchorEl] = useState(null);
   const [filters, setFilters] = useState({
     hasDisambiguation: null, // null = show all, true = has disambiguation, false = no disambiguation
-    hasAlreadyExists: null, // null = show all, true = has 'x', false = no 'x'
+    mergeStatus: '', // '' = show all, 'BOTH' = has 'BOTH', 'OLD' = has 'OLD', 'NEW' = has 'NEW'
+    isInvalidRCLink: null, // null = show all, true = is invalid
   });
+
+  // Memoized fetch and load of en_tw zip file
+  const [twRcLinks, setTwRcLinks] = useState([]);
+
+  useEffect(() => {
+    async function fetchTwArticleRcLinks() {
+      try {
+        const response = await fetch(`https://${dcsHost}/unfoldingWord/en_tw/archive/master.zip`);
+        const blob = await response.blob();
+        const zip = await JSZip.loadAsync(blob);
+        // Get all article paths that start with en_tw/bible and end with .md
+        const rcLinks = Object.keys(zip.files)
+          .filter((filePath) => filePath.startsWith('en_tw/bible/') && filePath.endsWith('.md'))
+          .map((filePath) => 'rc://*/tw/dict/' + filePath.slice('en_tw/'.length, filePath.length - '.md'.length));
+        setTwRcLinks(rcLinks);
+      } catch (err) {
+        console.warn(`Error fetching or processing en_tw zip: ${err.message}`);
+      }
+    }
+    fetchTwArticleRcLinks();
+  }, [dcsHost]);
 
   if (!tableData || !tableData.headers.length) {
     return <div>No data to display</div>;
@@ -56,7 +79,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
   const twLinkIndex = tableData.headers.findIndex((header) => header === 'TWLink');
   const glQuoteIndex = tableData.headers.findIndex((header) => header === 'GLQuote');
   const disambiguationIndex = tableData.headers.findIndex((header) => header === 'Disambiguation');
-  const alreadyExistsIndex = tableData.headers.findIndex((header) => header === 'Already Exists');
+  const alreadyExistsIndex = tableData.headers.findIndex((header) => header === 'Merge Status');
   const idIndex = tableData.headers.findIndex((header) => header === 'ID');
   const tagsIndex = tableData.headers.findIndex((header) => header === 'Tags');
 
@@ -108,10 +131,18 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
       });
     }
 
-    if (filters.hasAlreadyExists !== null) {
+    // Apply invalid RC link
+    if (filters.isInvalidRCLink !== null) {
       filtered = filtered.filter((row) => {
-        const hasAlreadyExists = alreadyExistsIndex >= 0 && row[alreadyExistsIndex] && row[alreadyExistsIndex].trim() === 'x';
-        return filters.hasAlreadyExists ? hasAlreadyExists : !hasAlreadyExists;
+        const isInvalidRCLink = twLinkIndex >= 0 && row[twLinkIndex] && !twRcLinks.includes(row[twLinkIndex]);
+        return filters.isInvalidRCLink ? isInvalidRCLink : !isInvalidRCLink;
+      });
+    }
+
+    if (filters.mergeStatus !== '') {
+      filtered = filtered.filter((row) => {
+        const mergeStatus = alreadyExistsIndex >= 0 && row[alreadyExistsIndex] && row[alreadyExistsIndex].trim() === filters.mergeStatus;
+        return filters.mergeStatus ? mergeStatus : !mergeStatus;
       });
     }
 
@@ -163,7 +194,8 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
   const clearFilters = () => {
     setFilters({
       hasDisambiguation: null,
-      hasAlreadyExists: null,
+      mergeStatus: null,
+      isInvalidRCLink: null,
     });
     setPage(0);
   };
@@ -206,8 +238,8 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
           startIcon={<FilterIcon />}
           size="small"
           endIcon={
-            (filters.hasDisambiguation !== null || filters.hasAlreadyExists !== null) && (
-              <Chip size="small" label={Object.values(filters).filter((v) => v !== null).length} color="primary" sx={{ ml: 1 }} />
+            (filters.hasDisambiguation !== null || filters.mergeStatus !== '' || filters.isInvalidRCLink !== null) && (
+              <Chip size="small" label={Object.values(filters).filter((v) => v !== null && v !== '').length} color="primary" sx={{ ml: 1 }} />
             )
           }
         >
@@ -233,19 +265,27 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
               label="No Disambiguation"
             />
 
-            {/* Only show Already Exists filter if the column exists */}
+            {/* Only show Merge Status filter if the column exists */}
             {alreadyExistsIndex >= 0 && (
               <>
+                <FormControlLabel
+                  control={<Checkbox checked={filters.isInvalidRCLink === true} onChange={(e) => handleFilterChange('isInvalidRCLink', e.target.checked ? true : null)} />}
+                  label="Is Invalid TWLink"
+                />
                 <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>
-                  Status:
+                  Merge Status:
                 </Typography>
                 <FormControlLabel
-                  control={<Checkbox checked={filters.hasAlreadyExists === true} onChange={(e) => handleFilterChange('hasAlreadyExists', e.target.checked ? true : null)} />}
-                  label="Already Exists"
+                  control={<Checkbox checked={filters.mergeStatus === 'BOTH'} onChange={(e) => handleFilterChange('mergeStatus', e.target.checked ? 'BOTH' : '')} />}
+                  label="BOTH"
                 />
                 <FormControlLabel
-                  control={<Checkbox checked={filters.hasAlreadyExists === false} onChange={(e) => handleFilterChange('hasAlreadyExists', e.target.checked ? false : null)} />}
-                  label="Is New"
+                  control={<Checkbox checked={filters.mergeStatus === 'OLD'} onChange={(e) => handleFilterChange('mergeStatus', e.target.checked ? 'OLD' : '')} />}
+                  label="OLD"
+                />
+                <FormControlLabel
+                  control={<Checkbox checked={filters.mergeStatus === 'NEW'} onChange={(e) => handleFilterChange('mergeStatus', e.target.checked ? 'NEW' : '')} />}
+                  label="NEW"
                 />
               </>
             )}
@@ -332,7 +372,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                     const url = convertRcLinkToUrl(cell, dcsHost);
                     if (url) {
                       return (
-                        <TableCell key={cellIndex}>
+                        <TableCell key={cellIndex} sx={!twRcLinks.includes(cell) ? { backgroundColor: '#ffe5e5' } : undefined}>
                           <Tooltip title="View the Translation Words article for this word" arrow>
                             <a
                               href={url}
