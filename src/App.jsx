@@ -1299,7 +1299,7 @@ function App() {
                     Save TWLs to File
                   </Button>
 
-                  <Button
+                  {/* <Button
                     onClick={handleCopyToClipboard}
                     variant="outlined"
                     size="small"
@@ -1312,7 +1312,7 @@ function App() {
                     }}
                   >
                     Copy to Clipboard
-                  </Button>
+                  </Button> */}
 
                   {/* <Button
                     component="a"
