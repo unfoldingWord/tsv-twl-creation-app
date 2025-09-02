@@ -48,7 +48,7 @@ export const isValidExtendedTsvStructure = (content) => {
 
   // Expected headers for 10-11 columns (new format with Disambiguation and Context)
   const expected10Headers = ['Reference', 'ID', 'Tags', 'OrigWords', 'Occurrence', 'TWLink', 'GLQuote', 'GLOccurrence', 'Disambiguation', 'Context'];
-  const expected11Headers = [...expected10Headers, 'Merge Statu'];
+  const expected11Headers = [...expected10Headers, 'Merge Status'];
 
   // Check if headers match expected format
   let expectedHeaders = [];
