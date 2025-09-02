@@ -29,14 +29,14 @@ import {
   FormControlLabel,
   Checkbox,
 } from '@mui/material';
-import { Delete as DeleteIcon, Search as SearchIcon, Clear as ClearIcon, FilterList as FilterIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, Search as SearchIcon, Clear as ClearIcon, FilterList as FilterIcon, Edit as EditIcon } from '@mui/icons-material';
 import { RxLinkBreak2 as UnlinkIcon } from 'react-icons/rx';
 import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConverters.js';
 import { truncateContextAroundWord } from '../utils/tsvUtils.js';
 import { parseDisambiguationOptions, renderDisambiguationText } from '../utils/disambiguationUtils.js';
 import JSZip from 'jszip';
 
-const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambiguationClick, onReferenceClick, onClearDisambiguation, dcsHost }) => {
+const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambiguationClick, onReferenceClick, onClearDisambiguation, onEditTWLink, dcsHost }) => {
   // State for pagination, search, and filtering
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
@@ -47,6 +47,10 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
     mergeStatus: '', // '' = show all, 'BOTH' = has 'BOTH', 'OLD' = has 'OLD', 'NEW' = has 'NEW'
     isInvalidRCLink: null, // null = show all, true = is invalid
   });
+
+  // State for tracking which TWLink field is being edited
+  const [editingTWLink, setEditingTWLink] = useState(null);
+  const [editValue, setEditValue] = useState('');
 
   // Memoized fetch and load of en_tw zip file
   const [twRcLinks, setTwRcLinks] = useState([]);
@@ -198,6 +202,34 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
       isInvalidRCLink: null,
     });
     setPage(0);
+  };
+
+  // TWLink editing handlers
+  const handleEditTWLinkStart = (rowIndex, currentValue) => {
+    setEditingTWLink(rowIndex);
+    setEditValue(currentValue || '');
+  };
+
+  const handleEditTWLinkSave = (rowIndex) => {
+    if (onEditTWLink) {
+      const actualRowIndex = getActualRowIndex(rowIndex);
+      onEditTWLink(actualRowIndex, editValue);
+    }
+    setEditingTWLink(null);
+    setEditValue('');
+  };
+
+  const handleEditTWLinkCancel = () => {
+    setEditingTWLink(null);
+    setEditValue('');
+  };
+
+  const handleKeyPress = (event, rowIndex) => {
+    if (event.key === 'Enter') {
+      handleEditTWLinkSave(rowIndex);
+    } else if (event.key === 'Escape') {
+      handleEditTWLinkCancel();
+    }
   };
 
   // Calculate actual row indices for callbacks (accounting for pagination and filtering)
@@ -355,7 +387,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                   {header}
                 </TableCell>
               ))}
-              {<TableCell sx={{ width: '100px', textAlign: 'center', fontWeight: 'norma', color: 'grey' }}>Actions</TableCell>}
+              {<TableCell sx={{ minWidth: '150px !important', textAlign: 'center', fontWeight: 'normal', color: 'grey' }}>Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -368,15 +400,31 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                   const isContextColumn = headerName === 'Context';
                   const isDisambiguationColumn = headerName === 'Disambiguation';
 
-                  // TWLink column with external links
-                  if (isTWLinkColumn && cell) {
-                    const url = convertRcLinkToUrl(cell, dcsHost);
-                    if (url) {
-                      return (
-                        <TableCell key={cellIndex} sx={!twRcLinks.includes(cell) ? { backgroundColor: '#ffe5e5' } : undefined}>
+                  // TWLink column with external links and edit functionality
+                  if (isTWLinkColumn) {
+                    const actualRowIndex = page * rowsPerPage + rowIndex;
+                    return (
+                      <TableCell key={cellIndex} sx={cell && !twRcLinks.includes(cell) ? { backgroundColor: '#ffe5e5' } : undefined}>
+                        {editingTWLink === actualRowIndex ? (
+                          <TextField
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onBlur={() => handleEditTWLinkSave(actualRowIndex)}
+                            onKeyDown={(e) => handleKeyPress(e, actualRowIndex)}
+                            size="small"
+                            fullWidth
+                            autoFocus
+                            variant="outlined"
+                            sx={{
+                              '& .MuiOutlinedInput-root': {
+                                fontSize: '0.875rem',
+                              },
+                            }}
+                          />
+                        ) : cell ? (
                           <Tooltip title="View the Translation Words article for this word" arrow>
                             <a
-                              href={url}
+                              href={convertRcLinkToUrl(cell, dcsHost)}
                               target="_blank"
                               rel="noopener noreferrer"
                               style={{
@@ -388,9 +436,11 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                               {cell}
                             </a>
                           </Tooltip>
-                        </TableCell>
-                      );
-                    }
+                        ) : (
+                          <Box sx={{ fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>{cell || ''}</Box>
+                        )}
+                      </TableCell>
+                    );
                   }
 
                   // Reference column with TN links
@@ -533,11 +583,26 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                   return <TableCell key={cellIndex}>{cell}</TableCell>;
                 })}
 
-                <TableCell sx={{ width: '100px', textAlign: 'center' }}>
+                <TableCell sx={{ minWidth: '150px !important', textAlign: 'center' }}>
+                  <Tooltip title="Edit TWLink">
+                    <IconButton
+                      onClick={() => handleEditTWLinkStart(getActualRowIndex(rowIndex), row[twLinkIndex])}
+                      size="small"
+                      disabled={editingTWLink !== null}
+                      sx={{
+                        color: 'blue',
+                        '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.04)' },
+                        mr: 1,
+                      }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title="Delete just this one TWL">
                     <IconButton
                       onClick={() => onDeleteRow(getActualRowIndex(rowIndex))}
                       size="small"
+                      disabled={editingTWLink !== null}
                       sx={{
                         color: '#d32f2f',
                         '&:hover': { backgroundColor: 'rgba(211, 47, 47, 0.04)' },
@@ -551,6 +616,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                     <IconButton
                       onClick={() => onUnlinkRow(getActualRowIndex(rowIndex))}
                       size="small"
+                      disabled={editingTWLink !== null}
                       sx={{
                         color: 'red',
                         '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.04)' },

@@ -41,7 +41,7 @@ import {
 } from '@mui/material';
 import {
   ContentPaste as PasteIcon,
-  Upload as UploadIcon,
+  FileOpen as FileOpenIcon,
   CloudDownload as DownloadIcon,
   Undo as UndoIcon,
   Save as SaveIcon,
@@ -525,6 +525,46 @@ function App() {
   };
 
   /**
+   * Handle editing TWLink field
+   */
+  const handleEditTWLink = (rowIndex, newTWLink) => {
+    if (!twlContent) return;
+
+    // Create backup before making changes
+    createBackup();
+
+    const lines = twlContent.split('\n');
+    if (lines.length === 0) return;
+
+    const headers = lines[0].split('\t');
+    const dataRowIndex = rowIndex + 1; // Add 1 to skip header row
+
+    if (dataRowIndex >= lines.length) return;
+
+    // Parse the target row
+    const row = lines[dataRowIndex].split('\t');
+
+    // Find the TWLink column index
+    const twLinkIndex = headers.findIndex((h) => h === 'TWLink');
+    if (twLinkIndex === -1) {
+      console.error('TWLink column not found');
+      return;
+    }
+
+    // Update the TWLink field
+    row[twLinkIndex] = newTWLink.trim();
+
+    // Update the content
+    lines[dataRowIndex] = row.join('\t');
+    let newContent = lines.join('\n');
+    // Normalize column count to ensure consistency
+    newContent = normalizeTsvColumnCount(newContent);
+    setTwlContent(newContent);
+    // Save to localStorage after TWLink edit
+    saveTwlContent(newContent);
+  };
+
+  /**
    * Handle raw text changes (no automatic backup)
    */
   const handleRawTextChange = (newContent) => {
@@ -849,7 +889,7 @@ function App() {
 
     const a = document.createElement('a');
     a.href = url;
-    a.download = `twl_${selectedBook?.value?.toUpperCase() || 'export'}_extended.tsv`;
+    a.download = `twl_${selectedBook?.value?.toUpperCase() || 'export'}_creation_app.tsv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -987,7 +1027,7 @@ function App() {
                   <label htmlFor="upload-tsv-file">
                     <Button
                       component="span"
-                      startIcon={<UploadIcon />}
+                      startIcon={<FileOpenIcon />}
                       variant="text"
                       sx={{
                         color: '#1976d2',
@@ -995,7 +1035,7 @@ function App() {
                         '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
                       }}
                     >
-                      Upload a TSV file
+                      Import a saved TSV file
                     </Button>
                   </label>
                 </Box>
@@ -1151,8 +1191,8 @@ function App() {
                   </Button>
 
                   <Button
-                    onClick={handleDownloadMenuClick}
-                    endIcon={<ArrowDropDownIcon />}
+                    onClick={handleDownloadAllColumns}
+                    startIcon={<SaveIcon />}
                     variant="contained"
                     size="small"
                     disabled={!twlContent || twlContent === ''}
@@ -1162,24 +1202,8 @@ function App() {
                       textTransform: 'none',
                     }}
                   >
-                    Download TWLs
+                    Save TWLs to File
                   </Button>
-                  <Menu
-                    anchorEl={downloadMenuAnchor}
-                    open={downloadMenuOpen}
-                    onClose={handleDownloadMenuClose}
-                    anchorOrigin={{
-                      vertical: 'bottom',
-                      horizontal: 'left',
-                    }}
-                    transformOrigin={{
-                      vertical: 'top',
-                      horizontal: 'left',
-                    }}
-                  >
-                    <MenuItem onClick={handleDownloadSixColumns}>Download First 6 Columns</MenuItem>
-                    <MenuItem onClick={handleDownloadAllColumns}>Download All Columns</MenuItem>
-                  </Menu>
 
                   <Button
                     onClick={handleCopyToClipboard}
@@ -1241,6 +1265,7 @@ function App() {
                       onUnlinkRow={handleUnlinkRow}
                       onDisambiguationClick={handleDisambiguationClick}
                       onClearDisambiguation={handleClearDisambiguation}
+                      onEditTWLink={handleEditTWLink}
                       onReferenceClick={handleReferenceClick}
                       dcsHost={dcsHost}
                     />

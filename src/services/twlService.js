@@ -37,14 +37,27 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
   // Add "Merge Status" column to headers if there are existing rows
   const finalHeaders = existingRows.length > 0 ? [...generatedHeaders, 'Merge Status'] : generatedHeaders;
 
-  // Find column indices
-  const origWordsIndex = generatedHeaders.findIndex((h) => h === 'OrigWords');
-  const occurrenceIndex = generatedHeaders.findIndex((h) => h === 'Occurrence');
+  // Find column indices for generated content
+  const generatedOrigWordsIndex = generatedHeaders.findIndex((h) => h === 'OrigWords');
+  const generatedOccurrenceIndex = generatedHeaders.findIndex((h) => h === 'Occurrence');
+  const generatedTWLinkIndex = generatedHeaders.findIndex((h) => h === 'TWLink');
+
+  console.log('Generated headers:', generatedHeaders);
+  console.log('Generated indices:', { origWords: generatedOrigWordsIndex, occurrence: generatedOccurrenceIndex, twlink: generatedTWLinkIndex });
+
+  // Find column indices for existing content (may be different if structure differs)
+  const existingOrigWordsIndex = existing.headers ? existing.headers.findIndex((h) => h === 'OrigWords') : generatedOrigWordsIndex;
+  const existingOccurrenceIndex = existing.headers ? existing.headers.findIndex((h) => h === 'Occurrence') : generatedOccurrenceIndex;
+  const existingTWLinkIndex = existing.headers ? existing.headers.findIndex((h) => h === 'TWLink') : generatedTWLinkIndex;
+
+  console.log('Existing headers:', existing.headers);
+  console.log('Existing indices:', { origWords: existingOrigWordsIndex, occurrence: existingOccurrenceIndex, twlink: existingTWLinkIndex });
 
   // Initialize pointers
   let existingPointer = 0;
   let generatedPointer = 0;
   const mergedRows = [];
+  const usedGeneratedRows = new Set(); // Track which generated rows have been matched
 
   // Helper function to create extended existing row
   const createExtendedExistingRow = (existingRow) => {
@@ -61,18 +74,33 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
   };
 
   // Helper function to check if existing row matches generated row
-  const isExactMatch = (existingRow, generatedRow) => {
-    const existingRef = existingRow[0] || '';
-    const existingOrigWords = origWordsIndex >= 0 ? (existingRow[origWordsIndex] || '') : '';
-    const existingOccurrence = occurrenceIndex >= 0 ? (existingRow[occurrenceIndex] || '') : '';
+  const isExactMatch = (generatedRow, existingRow) => {
+    // Use appropriate column indices for each row type
+    const genReference = generatedRow[0];
+    const genOrigWords = generatedRow[generatedOrigWordsIndex];
+    const genOccurrence = generatedRow[generatedOccurrenceIndex];
+    const genTWLink = generatedRow[generatedTWLinkIndex];
 
-    const generatedRef = generatedRow[0] || '';
-    const generatedOrigWords = origWordsIndex >= 0 ? (generatedRow[origWordsIndex] || '') : '';
-    const generatedOccurrence = occurrenceIndex >= 0 ? (generatedRow[occurrenceIndex] || '') : '';
+    const exReference = existingRow[0]; // Reference is always first column
+    const exOrigWords = existingRow[existingOrigWordsIndex];
+    const exOccurrence = existingRow[existingOccurrenceIndex];
+    const exTWLink = existingRow[existingTWLinkIndex];
 
-    return existingRef === generatedRef &&
-      existingOrigWords === generatedOrigWords &&
-      existingOccurrence === generatedOccurrence;
+    console.log('Comparing:', {
+      genRef: genReference,
+      exRef: exReference,
+      genOrig: genOrigWords,
+      exOrig: exOrigWords,
+      genOcc: genOccurrence,
+      exOcc: exOccurrence,
+      genTWLink: genTWLink,
+      exTWLink: exTWLink
+    });
+
+    return genReference === exReference &&
+      genOrigWords === exOrigWords &&
+      genOccurrence === exOccurrence &&
+      genTWLink === exTWLink;
   };
 
   // Helper function to update generated row with existing data
@@ -116,10 +144,17 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
       const generatedRow = generatedRows[generatedPointer];
       const generatedRef = generatedRow[0] || '';
 
+      // Skip already used rows
+      if (usedGeneratedRows.has(generatedPointer)) {
+        generatedPointer++;
+        continue;
+      }
+
       if (compareReferences(generatedRef, existingRef) < 0) {
         // Generated reference is less than existing reference, add it
         const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRow, 'NEW'] : generatedRow;
         mergedRows.push(extendedGeneratedRow);
+        usedGeneratedRows.add(generatedPointer);
         generatedPointer++;
       } else {
         // Generated reference is >= existing reference, break to handle existing row
@@ -129,38 +164,45 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
 
     // Now look for a matching generated row with the same reference
     let matchFound = false;
-    let tempGeneratedPointer = generatedPointer;
+    let matchIndex = -1;
 
-    // Search through generated rows with the same reference as the existing row
-    while (tempGeneratedPointer < generatedRows.length) {
-      const generatedRow = generatedRows[tempGeneratedPointer];
-      const generatedRef = generatedRow[0] || '';
+    // Search through ALL remaining generated rows for an exact match
+    for (let i = generatedPointer; i < generatedRows.length; i++) {
+      // Skip already used rows
+      if (usedGeneratedRows.has(i)) {
+        continue;
+      }
 
-      if (compareReferences(generatedRef, existingRef) === 0) {
-        // Same reference, check for exact match
-        if (isExactMatch(existingRow, generatedRow)) {
-          // Exact match found! Add all generated rows up to this point
-          while (generatedPointer < tempGeneratedPointer) {
-            const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRows[generatedPointer], 'NEW'] : generatedRows[generatedPointer];
-            mergedRows.push(extendedGeneratedRow);
-            generatedPointer++;
-          }
-          // Add the updated generated row with existing data
-          mergedRows.push(updateGeneratedRow(generatedRow, existingRow));
-          generatedPointer++; // Skip the matched generated row
-          matchFound = true;
-          break;
-        }
-        tempGeneratedPointer++;
-      } else if (compareReferences(generatedRef, existingRef) > 0) {
-        // No more rows with this reference
+      const generatedRow = generatedRows[i];
+
+      if (isExactMatch(existingRow, generatedRow)) {
+        matchFound = true;
+        matchIndex = i;
         break;
-      } else {
-        tempGeneratedPointer++;
       }
     }
 
-    if (!matchFound) {
+    if (matchFound) {
+      // Add all generated rows up to the match as NEW (that haven't been used)
+      while (generatedPointer < matchIndex) {
+        if (!usedGeneratedRows.has(generatedPointer)) {
+          const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRows[generatedPointer], 'NEW'] : generatedRows[generatedPointer];
+          mergedRows.push(extendedGeneratedRow);
+          usedGeneratedRows.add(generatedPointer);
+        }
+        generatedPointer++;
+      }
+
+      // Add the matched row with BOTH status
+      const matchedGeneratedRow = generatedRows[matchIndex];
+      mergedRows.push(updateGeneratedRow(matchedGeneratedRow, existingRow));
+      usedGeneratedRows.add(matchIndex);
+
+      // Move pointer past the match if needed
+      if (generatedPointer <= matchIndex) {
+        generatedPointer = matchIndex + 1;
+      }
+    } else {
       // No exact match found, insert the existing row as-is
       mergedRows.push(createExtendedExistingRow(existingRow));
     }
@@ -168,11 +210,12 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
     existingPointer++;
   }
 
-  // Add any remaining generated rows
-  while (generatedPointer < generatedRows.length) {
-    const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRows[generatedPointer], 'NEW'] : generatedRows[generatedPointer];
-    mergedRows.push(extendedGeneratedRow);
-    generatedPointer++;
+  // Add any remaining generated rows that haven't been used
+  for (let i = 0; i < generatedRows.length; i++) {
+    if (!usedGeneratedRows.has(i)) {
+      const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRows[i], 'NEW'] : generatedRows[i];
+      mergedRows.push(extendedGeneratedRow);
+    }
   }
 
   // Rebuild the TSV content
