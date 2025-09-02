@@ -24,7 +24,7 @@
     "react-dom": "^18.2.0",
     "react-icons": "^5.5.0",
     "tsv-quote-converters": "^1.1.9",
-    "twl-generator": "^1.2.13"
+    "twl-generator": "^1.2.15"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",

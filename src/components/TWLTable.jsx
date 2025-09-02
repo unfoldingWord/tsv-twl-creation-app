@@ -205,14 +205,14 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
   };
 
   // TWLink editing handlers
-  const handleEditTWLinkStart = (rowIndex, currentValue) => {
-    setEditingTWLink(rowIndex);
+  const handleEditTWLinkStart = (paginatedRowIndex, currentValue) => {
+    setEditingTWLink(paginatedRowIndex); // Store the paginated row index, not the actual row index
     setEditValue(currentValue || '');
   };
 
-  const handleEditTWLinkSave = (rowIndex) => {
+  const handleEditTWLinkSave = (paginatedRowIndex) => {
     if (onEditTWLink) {
-      const actualRowIndex = getActualRowIndex(rowIndex);
+      const actualRowIndex = getActualRowIndex(paginatedRowIndex);
       onEditTWLink(actualRowIndex, editValue);
     }
     setEditingTWLink(null);
@@ -224,9 +224,9 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
     setEditValue('');
   };
 
-  const handleKeyPress = (event, rowIndex) => {
+  const handleKeyPress = (event, paginatedRowIndex) => {
     if (event.key === 'Enter') {
-      handleEditTWLinkSave(rowIndex);
+      handleEditTWLinkSave(paginatedRowIndex);
     } else if (event.key === 'Escape') {
       handleEditTWLinkCancel();
     }
@@ -236,9 +236,16 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
   const getActualRowIndex = (paginatedRowIndex) => {
     const filteredRowIndex = page * rowsPerPage + paginatedRowIndex;
     const filteredRow = filteredRows[filteredRowIndex];
-    return tableData.rows.findIndex((row) => row === filteredRow);
-  };
 
+    // Find the index of this row in the original tableData.rows
+    const actualIndex = tableData.rows.findIndex((originalRow) => {
+      // Compare all cells to ensure we find the exact same row
+      if (originalRow.length !== filteredRow.length) return false;
+      return originalRow.every((cell, index) => cell === filteredRow[index]);
+    });
+
+    return actualIndex;
+  };
   return (
     <Box>
       {/* Search and Filter Controls */}
@@ -402,15 +409,14 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
 
                   // TWLink column with external links and edit functionality
                   if (isTWLinkColumn) {
-                    const actualRowIndex = page * rowsPerPage + rowIndex;
                     return (
                       <TableCell key={cellIndex} sx={cell && !twRcLinks.includes(cell) ? { backgroundColor: '#ffe5e5' } : undefined}>
-                        {editingTWLink === actualRowIndex ? (
+                        {editingTWLink === rowIndex ? (
                           <TextField
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => handleEditTWLinkSave(actualRowIndex)}
-                            onKeyDown={(e) => handleKeyPress(e, actualRowIndex)}
+                            onBlur={() => handleEditTWLinkSave(rowIndex)}
+                            onKeyDown={(e) => handleKeyPress(e, rowIndex)}
                             size="small"
                             fullWidth
                             autoFocus
@@ -586,7 +592,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                 <TableCell sx={{ minWidth: '150px !important', textAlign: 'center' }}>
                   <Tooltip title="Edit TWLink">
                     <IconButton
-                      onClick={() => handleEditTWLinkStart(getActualRowIndex(rowIndex), row[twLinkIndex])}
+                      onClick={() => handleEditTWLinkStart(rowIndex, row[twLinkIndex])}
                       size="small"
                       disabled={editingTWLink !== null}
                       sx={{
