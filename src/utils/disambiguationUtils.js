@@ -26,7 +26,7 @@ export const parseDisambiguationOptions = (disambiguationText, currentTWLink, on
   }
 
   // Determine which option is currently selected by examining the TWLink
-  let currentOptionIndex = 0;
+  let currentOptionIndex = -1; // Default to -1 (no match) instead of 0
   if (currentTWLink) {
     // TWLink format: "rc://*/tw/dict/bible/kt/god"
     const twLinkMatch = currentTWLink.match(/\/([^\/]+\/[^\/]+)$/);
@@ -39,10 +39,12 @@ export const parseDisambiguationOptions = (disambiguationText, currentTWLink, on
     }
   }
 
-  // Create clickable options for all non-selected options
+  // Create clickable options
   const clickableOptions = [];
   options.forEach((option, index) => {
-    if (index !== currentOptionIndex) {
+    // If no current option is selected (currentOptionIndex === -1), make all options clickable
+    // Otherwise, make all non-selected options clickable
+    if (currentOptionIndex === -1 || index !== currentOptionIndex) {
       const newTWLink = `rc://*/tw/dict/bible/${option}`;
 
       clickableOptions.push({
@@ -56,7 +58,7 @@ export const parseDisambiguationOptions = (disambiguationText, currentTWLink, on
   });
 
   return {
-    currentOption: options[currentOptionIndex],
+    currentOption: currentOptionIndex !== -1 ? options[currentOptionIndex] : '', // Empty string if no match
     clickableOptions,
     allOptions: options,
     selectedIndex: currentOptionIndex
@@ -92,7 +94,7 @@ export const renderDisambiguationText = (disambiguationText, parseResult) => {
         isSelected: true // Flag to allow custom styling
       });
     } else {
-      // This is a clickable option
+      // This is a clickable option (either selectedIndex is -1 so all are clickable, or this isn't the selected one)
       const clickableOption = clickableOptions.find(opt => opt.path === option);
       if (clickableOption) {
         elements.push({
