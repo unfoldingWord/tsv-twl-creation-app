@@ -162,6 +162,11 @@ function App() {
     result: null,
   });
 
+  // Confirmation dialog state for work in progress
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null); // 'book-change' or 'generate-twl'
+  const [pendingData, setPendingData] = useState(null); // Data related to the pending action
+
   // Handle download menu open/close
   const handleDownloadMenuClick = (event) => {
     setDownloadMenuAnchor(event.currentTarget);
@@ -649,6 +654,74 @@ function App() {
   };
 
   /**
+   * Handle book selection with work in progress check
+   */
+  const handleBookSelectWithConfirmation = (event, value) => {
+    // Check if there's work in progress and the book is actually changing
+    const hasWorkInProgress = twlContent && twlContent.trim();
+    const isBookChanging = !value || !selectedBook || value.value !== selectedBook.value;
+
+    if (hasWorkInProgress && isBookChanging) {
+      setPendingAction('book-change');
+      setPendingData({ event, value });
+      setConfirmDialogOpen(true);
+    } else {
+      // No work in progress or no change, proceed normally
+      handleBookSelect(event, value);
+    }
+  };
+
+  /**
+   * Handle generate TWL with work in progress check
+   */
+  const handleMainActionWithConfirmation = async () => {
+    // Check if there's work in progress
+    const hasWorkInProgress = twlContent && twlContent.trim();
+
+    if (hasWorkInProgress) {
+      setPendingAction('generate-twl');
+      setPendingData(null);
+      setConfirmDialogOpen(true);
+    } else {
+      // No work in progress, proceed normally
+      await handleMainAction();
+    }
+  };
+
+  /**
+   * Handle confirmation dialog actions
+   */
+  const handleConfirmDialogAction = async (action) => {
+    switch (action) {
+      case 'save-and-continue':
+        handleSaveCurrentWork();
+        await proceedWithPendingAction();
+        break;
+      case 'continue-without-saving':
+        await proceedWithPendingAction();
+        break;
+      case 'cancel':
+        // Do nothing, just close dialog
+        break;
+    }
+
+    setConfirmDialogOpen(false);
+    setPendingAction(null);
+    setPendingData(null);
+  };
+
+  /**
+   * Execute the pending action after confirmation
+   */
+  const proceedWithPendingAction = async () => {
+    if (pendingAction === 'book-change' && pendingData) {
+      handleBookSelect(pendingData.event, pendingData.value);
+    } else if (pendingAction === 'generate-twl') {
+      await handleMainAction();
+    }
+  };
+
+  /**
    * Handle the main action button - either generate TWL or load existing extended format
    */
   const handleMainAction = async () => {
@@ -874,6 +947,27 @@ function App() {
   };
 
   /**
+   * Save current TWL content to file (for work in progress)
+   */
+  const handleSaveCurrentWork = () => {
+    if (!twlContent) return;
+
+    // Normalize the content to ensure all rows have consistent column counts
+    const normalizedContent = normalizeTsvColumnCount(twlContent);
+
+    const blob = new Blob([normalizedContent], { type: 'text/tab-separated-values' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `twl_${selectedBook?.value?.toUpperCase() || 'export'}_creation_app.tsv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  /**
    * Download all columns of the TWL as TSV (normalized column count)
    */
   const handleDownloadAllColumns = () => {
@@ -972,7 +1066,7 @@ function App() {
                     options={bookOptions}
                     getOptionLabel={(option) => option.label}
                     value={selectedBook}
-                    onChange={handleBookSelect}
+                    onChange={handleBookSelectWithConfirmation}
                     isOptionEqualToValue={(option, value) => option.value === value?.value}
                     renderInput={(params) => <TextField {...params} label="Select a Bible book..." variant="outlined" fullWidth />}
                     sx={{ mt: 2 }}
@@ -1099,7 +1193,7 @@ function App() {
               {/* Generate/Load TWLs Button */}
               <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
                 <Button
-                  onClick={handleMainAction}
+                  onClick={handleMainActionWithConfirmation}
                   variant="contained"
                   disabled={!selectedBook || loading || (existingTwlContent.trim() !== '' && !existingTwlValid)}
                   sx={{
@@ -1389,6 +1483,28 @@ function App() {
             disabled={commitForm.submitting || !commitForm.name.trim() || !commitForm.email.trim() || commitForm.result?.success}
           >
             {commitForm.submitting ? 'Committing...' : 'Commit & Create PR'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Work in Progress Confirmation Dialog */}
+      <Dialog open={confirmDialogOpen} onClose={() => handleConfirmDialogAction('cancel')} maxWidth="sm" fullWidth>
+        <DialogTitle>{pendingAction === 'book-change' ? 'Change Book' : 'Generate New TWL'}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            You have work in progress. What would you like to do?
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {pendingAction === 'book-change' ? 'Changing the book will clear your current work.' : 'Generating a new TWL will replace your current work.'}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => handleConfirmDialogAction('cancel')}>Cancel</Button>
+          <Button onClick={() => handleConfirmDialogAction('continue-without-saving')} color="warning">
+            Continue Without Saving
+          </Button>
+          <Button onClick={() => handleConfirmDialogAction('save-and-continue')} variant="contained">
+            Save and Continue
           </Button>
         </DialogActions>
       </Dialog>
