@@ -24,7 +24,7 @@ This app helps translators and editors create Translation Word Lists by:
 ### TWL Generation
 
 - **Automatic TWL creation** from USFM using external libraries
-- **GLQuote and GLOccurrence columns** added automatically
+- **Comprehensive column support** including Strongs numbers, GLQuote/GLOccurrence, Variant information, and Disambiguation options
 - **Quote conversion** from Gateway Language to Original Language
 - **Smart merging** with existing TWL content using pointer-based algorithms
 
@@ -32,6 +32,7 @@ This app helps translators and editors create Translation Word Lists by:
 
 - **Row deletion** with single-level undo functionality
 - **Clickable disambiguation options** to switch between alternative word links
+- **Advanced filtering** including disambiguation status, variant/non-variant entries, and merge status
 - **Reference links** that open Translation Notes in new windows
 - **Context truncation** with hover tooltips for long text
 - **Column visibility** controls (show/hide extra columns)

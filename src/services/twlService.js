@@ -62,12 +62,10 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
   // Helper function to create extended existing row
   const createExtendedExistingRow = (existingRow) => {
     const extendedRow = [...existingRow];
-    while (extendedRow.length < generatedHeaders.length - 1) {
+    while (extendedRow.length < generatedHeaders.length) {
       extendedRow.push('');
     }
 
-    // Add "N/A" for "Context" column
-    extendedRow.push('N/A');
     // Add "OLD" to "Merge Status" column
     extendedRow.push('OLD');
     return extendedRow;

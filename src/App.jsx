@@ -58,7 +58,7 @@ import { useAppState } from './hooks/useAppState.js';
 import { useTableData } from './hooks/useTableData.js';
 import TWLTable from './components/TWLTable.jsx';
 import UnlinkedWordsManager from './components/UnlinkedWordsManager.jsx';
-import { fetchUSFMContent, fetchTWLContent } from './services/apiService.js';
+import { fetchTWLContent } from './services/apiService.js';
 import { mergeExistingTwls } from './services/twlService.js';
 import {
   isValidTsvStructure,
@@ -75,7 +75,7 @@ import { getUserIdentifier } from './utils/userUtils.js';
 import { useUnlinkedWords } from './hooks/useUnlinkedWords.js';
 
 // External TWL processing libraries
-import { generateTWLWithUsfm } from 'twl-generator';
+import { generateTwlByBook } from 'twl-generator';
 import { convertGLQuotes2OLQuotes, addGLQuoteCols } from 'tsv-quote-converters';
 
 // Material-UI theme configuration
@@ -782,18 +782,15 @@ function App() {
     setError('');
 
     try {
-      // Fetch USFM content first if not already available
-      let usfmToUse = usfmContent;
-      if (!usfmToUse.trim()) {
-        usfmToUse = await fetchUSFMContent(selectedBook.value, dcsHost);
-        setUsfmContent(usfmToUse);
-      }
-
       // Generate TWL using external library
-      let generatedTwl = await generateTWLWithUsfm(selectedBook.value, usfmToUse);
+      let response = await generateTwlByBook(selectedBook.value);
+
+      console.log('Generated TWL (before processing):', response.matchedTsv);
+      console.log('No-match TSV:', response.noMatchTsv);
 
       // Add GLQuote and GLOccurrence columns
-      generatedTwl = addGLQuoteColumns(generatedTwl);
+      // let generatedTwl = addGLQuoteColumns(response.matchedTsv);
+      let generatedTwl = response.matchedTsv;
 
       const convertResponse = await convertGLQuotes2OLQuotes({
         bibleLinks: [`unfoldingWord/en_ult/master`],
@@ -811,6 +808,9 @@ function App() {
       // Merge with existing TWL if provided
 
       if (existingTwlContent.trim()) {
+        console.log('Generated TWL before merging:', generatedTwl);
+        console.log('Merging with existing TWL:', existingTwlContent);
+
         const addGlQuotesToExisingResults = await addGLQuoteCols({
           bibleLinks: 'unfoldingWord/en_ult/master',
           bookCode: selectedBook.value,
@@ -828,9 +828,9 @@ function App() {
           .map((row, idx) => {
             const cols = row.split('\t');
             if (idx === 0) {
-              return [cols[0], cols[1], cols[2], cols[3], cols[4], cols[7]].join('\t');
+              return [cols[0], cols[1], cols[2], cols[3], cols[4], cols[7], cols[5], cols[6]].join('\t');
             } else {
-              return [cols[0], cols[1], cols[2], cols[5], cols[6], cols[7]].join('\t');
+              return [cols[0], cols[1], cols[2], cols[5], cols[6], cols[7], cols[5], cols[6]].join('\t');
             }
           })
           .join('\n');
@@ -842,22 +842,12 @@ function App() {
           trySeparatorsAndOccurrences: true,
         });
 
+        console.log('Existing TWL with GLQuotes (after adding GLQuote columns):', convertGl2OlResults.output);
+
         generatedTwl = await mergeExistingTwls(generatedTwl, convertGl2OlResults.output, dcsHost);
+
+        console.log('Generated TWL after merging with existing TWL:', generatedTwl);
       }
-
-      const addGLQuoteColsResult = await addGLQuoteCols({
-        bibleLinks: ['unfoldingWord/en_ult/master'],
-        bookCode: selectedBook.value,
-        tsvContent: generatedTwl,
-        trySeparatorsAndOccurrences: true,
-        quiet: false,
-      });
-
-      if (!addGLQuoteColsResult || typeof addGLQuoteColsResult !== 'object' || !addGLQuoteColsResult.output) {
-        throw new Error(`addGLQuoteCols failed: ${JSON.stringify(addGLQuoteColsResult)}`);
-      }
-
-      generatedTwl = addGLQuoteColsResult.output;
 
       // Ensure all IDs are unique and properly formatted
       generatedTwl = ensureUniqueIds(generatedTwl);
@@ -1164,7 +1154,7 @@ function App() {
               <textarea
                 value={existingTwlContent}
                 onChange={(e) => handleExistingTwlChange(e.target.value)}
-                placeholder="Existing TWL content will appear here... (6 columns for merging, or 8-11 columns for direct loading)"
+                placeholder="Existing TWL content will appear here... (6 columns for merging, or 8-12 columns for direct loading)"
                 style={{
                   width: '100%',
                   height: existingTwlContent ? '200px' : '50px',
@@ -1185,8 +1175,8 @@ function App() {
 
               {existingTwlContent.trim() && !existingTwlValid && (
                 <Alert severity="error" sx={{ mt: 1 }}>
-                  Invalid TWL format. Must have exactly 6 columns, or 8-11 columns with proper headers (Reference, ID, Tags, OrigWords, Occurrence, TWLink, GLQuote, GLOccurrence,
-                  [Disambiguation, Context], [Merge Status]).
+                  Invalid TWL format. Must have exactly 6 columns, or 8-12 columns with proper headers (Reference, ID, Tags, OrigWords, Occurrence, TWLink, GLQuote, GLOccurrence,
+                  [Strongs], [Variant of], [Disambiguation], [Merge Status]).
                 </Alert>
               )}
 
@@ -1489,7 +1479,7 @@ function App() {
 
       {/* Work in Progress Confirmation Dialog */}
       <Dialog open={confirmDialogOpen} onClose={() => handleConfirmDialogAction('cancel')} maxWidth="sm" fullWidth>
-        <DialogTitle>{pendingAction === 'book-change' ? 'Change Book' : 'Generate New TWL'}</DialogTitle>
+        <DialogTitle>{pendingAction === 'book-change' ? 'Change Book' : 'Generate New TWL?'}</DialogTitle>
         <DialogContent>
           <Typography variant="body1" sx={{ mb: 2 }}>
             You have work in progress. What would you like to do?

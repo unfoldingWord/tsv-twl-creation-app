@@ -12,3 +12,8 @@
     Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Headers = "Content-Type"
     Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+
+[[headers]]
+  for = "/tw_strongs_list.json"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, s-maxage=3600"

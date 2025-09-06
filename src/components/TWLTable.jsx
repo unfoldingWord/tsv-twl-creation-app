@@ -46,6 +46,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
     hasDisambiguation: null, // null = show all, true = has disambiguation, false = no disambiguation
     mergeStatus: '', // '' = show all, 'BOTH' = has 'BOTH', 'OLD' = has 'OLD', 'NEW' = has 'NEW'
     isInvalidRCLink: null, // null = show all, true = is invalid
+    isVariant: null, // null = show all, true = has variant info, false = no variant info
   });
 
   // State for tracking which TWLink field is being edited
@@ -83,6 +84,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
   const twLinkIndex = tableData.headers.findIndex((header) => header === 'TWLink');
   const glQuoteIndex = tableData.headers.findIndex((header) => header === 'GLQuote');
   const disambiguationIndex = tableData.headers.findIndex((header) => header === 'Disambiguation');
+  const variantOfIndex = tableData.headers.findIndex((header) => header === 'Variant of');
   const alreadyExistsIndex = tableData.headers.findIndex((header) => header === 'Merge Status');
   const idIndex = tableData.headers.findIndex((header) => header === 'ID');
   const tagsIndex = tableData.headers.findIndex((header) => header === 'Tags');
@@ -115,6 +117,10 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
         if (disambiguationIndex >= 0 && row[disambiguationIndex] && row[disambiguationIndex].toLowerCase().includes(searchLower)) {
           return true;
         }
+        // Variant of (partial match)
+        if (variantOfIndex >= 0 && row[variantOfIndex] && row[variantOfIndex].toLowerCase().includes(searchLower)) {
+          return true;
+        }
         // ID (partial match)
         if (idIndex >= 0 && row[idIndex] && row[idIndex].toLowerCase().includes(searchLower)) {
           return true;
@@ -135,6 +141,14 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
       });
     }
 
+    // Apply variant filter
+    if (filters.isVariant !== null) {
+      filtered = filtered.filter((row) => {
+        const isVariant = variantOfIndex >= 0 && row[variantOfIndex] && row[variantOfIndex].trim() !== '';
+        return filters.isVariant ? isVariant : !isVariant;
+      });
+    }
+
     // Apply invalid RC link
     if (filters.isInvalidRCLink !== null) {
       filtered = filtered.filter((row) => {
@@ -151,7 +165,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
     }
 
     return filtered;
-  }, [tableData.rows, searchTerm, filters, referenceIndex, origWordsIndex, twLinkIndex, glQuoteIndex, disambiguationIndex, alreadyExistsIndex, idIndex, tagsIndex]);
+  }, [tableData.rows, searchTerm, filters, referenceIndex, origWordsIndex, twLinkIndex, glQuoteIndex, disambiguationIndex, variantOfIndex, alreadyExistsIndex, idIndex, tagsIndex]);
 
   // Pagination logic
   const paginatedRows = useMemo(() => {
@@ -200,6 +214,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
       hasDisambiguation: null,
       mergeStatus: null,
       isInvalidRCLink: null,
+      isVariant: null,
     });
     setPage(0);
   };
@@ -252,7 +267,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
       <Box sx={{ mb: 0, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
         <TextField
           size="small"
-          placeholder="Search Reference, ID, Tags, OrigWords, TWLink, GLQuote, Disambiguation..."
+          placeholder="Search Reference, ID, Tags, OrigWords, TWLink, GLQuote, Variant of, Disambiguation..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           sx={{ minWidth: 400, flexGrow: 1 }}
@@ -294,7 +309,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
           </Typography>
 
           <FormGroup>
-            {/* Disambiguation filter checkboxes (no label) */}
+            {/* Disambiguation filter checkboxes */}
             <FormControlLabel
               control={<Checkbox checked={filters.hasDisambiguation === true} onChange={(e) => handleFilterChange('hasDisambiguation', e.target.checked ? true : null)} />}
               label="Has Disambiguation"
@@ -303,6 +318,42 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
               control={<Checkbox checked={filters.hasDisambiguation === false} onChange={(e) => handleFilterChange('hasDisambiguation', e.target.checked ? false : null)} />}
               label="No Disambiguation"
             />
+
+            {/* Variant filter checkboxes (only show if column exists) */}
+            {variantOfIndex >= 0 && (
+              <>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filters.isVariant === true}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          handleFilterChange('isVariant', true);
+                        } else {
+                          handleFilterChange('isVariant', null);
+                        }
+                      }}
+                    />
+                  }
+                  label="Is Variant"
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filters.isVariant === false}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          handleFilterChange('isVariant', false);
+                        } else {
+                          handleFilterChange('isVariant', null);
+                        }
+                      }}
+                    />
+                  }
+                  label="Not a Variant"
+                />
+              </>
+            )}
 
             <FormControlLabel
               control={<Checkbox checked={filters.isInvalidRCLink === true} onChange={(e) => handleFilterChange('isInvalidRCLink', e.target.checked ? true : null)} />}
