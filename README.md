@@ -139,3 +139,4 @@ The app integrates seamlessly with the Door43 translation ecosystem:
 ---
 
 This tool streamlines the Translation Word List creation process while maintaining compatibility with the Door43 translation workflow.
+
