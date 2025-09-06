@@ -436,7 +436,7 @@ function App() {
 
       if (shouldRemove) {
         removedCount++;
-        console.log(`REMOVING row ${i}: OrigWords="${currepntOrigWords}" (norm: "${currentNormalizedOrigWords}"), TWLink="${currentTWLink}"`);
+        console.log(`REMOVING row ${i}: OrigWords="${currentOrigWords}" (norm: "${currentNormalizedOrigWords}"), TWLink="${currentTWLink}"`);
       } else {
         filteredLines.push(lines[i]);
         // Log first few non-matches to understand what's different
