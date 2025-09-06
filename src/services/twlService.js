@@ -116,9 +116,9 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
         updatedRow[8] = `(${disambiguations.join(', ')})`;
       }
 
-      // Add "BOTH" to Merge Status column
+      // Add "MERGED" to Merge Status column
       if (existingRows.length > 0) {
-        updatedRow.push('BOTH');
+        updatedRow.push('MERGED');
       }
 
       processedRows.push(updatedRow);
@@ -196,7 +196,7 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
         finalRows.push(processedRow);
         processedIndex++;
       } else {
-        // Remaining OLD row comes before NEW/BOTH rows
+        // Remaining OLD row comes before NEW/MERGED rows
         finalRows.push(remainingRow.row);
         remainingIndex++;
       }

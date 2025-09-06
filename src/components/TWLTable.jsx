@@ -44,7 +44,7 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
   const [filterAnchorEl, setFilterAnchorEl] = useState(null);
   const [filters, setFilters] = useState({
     hasDisambiguation: null, // null = show all, true = has disambiguation, false = no disambiguation
-    mergeStatus: '', // '' = show all, 'BOTH' = has 'BOTH', 'OLD' = has 'OLD', 'NEW' = has 'NEW'
+    mergeStatus: '', // '' = show all, 'merged' = show MERGED rows, 'unmerged' = show OLD/NEW rows
     isInvalidRCLink: null, // null = show all, true = is invalid
     isVariant: null, // null = show all, true = has variant info, false = no variant info
   });
@@ -159,8 +159,15 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
 
     if (filters.mergeStatus !== '') {
       filtered = filtered.filter((row) => {
-        const mergeStatus = alreadyExistsIndex >= 0 && row[alreadyExistsIndex] && row[alreadyExistsIndex].trim() === filters.mergeStatus;
-        return filters.mergeStatus ? mergeStatus : !mergeStatus;
+        if (alreadyExistsIndex >= 0 && row[alreadyExistsIndex]) {
+          const status = row[alreadyExistsIndex].trim();
+          if (filters.mergeStatus === 'merged') {
+            return status === 'MERGED';
+          } else if (filters.mergeStatus === 'unmerged') {
+            return status === 'OLD' || status === 'NEW';
+          }
+        }
+        return false;
       });
     }
 
@@ -367,16 +374,12 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                   Merge Status:
                 </Typography>
                 <FormControlLabel
-                  control={<Checkbox checked={filters.mergeStatus === 'BOTH'} onChange={(e) => handleFilterChange('mergeStatus', e.target.checked ? 'BOTH' : '')} />}
-                  label="BOTH"
+                  control={<Checkbox checked={filters.mergeStatus === 'merged'} onChange={(e) => handleFilterChange('mergeStatus', e.target.checked ? 'merged' : '')} />}
+                  label="Merged"
                 />
                 <FormControlLabel
-                  control={<Checkbox checked={filters.mergeStatus === 'OLD'} onChange={(e) => handleFilterChange('mergeStatus', e.target.checked ? 'OLD' : '')} />}
-                  label="OLD"
-                />
-                <FormControlLabel
-                  control={<Checkbox checked={filters.mergeStatus === 'NEW'} onChange={(e) => handleFilterChange('mergeStatus', e.target.checked ? 'NEW' : '')} />}
-                  label="NEW"
+                  control={<Checkbox checked={filters.mergeStatus === 'unmerged'} onChange={(e) => handleFilterChange('mergeStatus', e.target.checked ? 'unmerged' : '')} />}
+                  label="Unmerged"
                 />
               </>
             )}
