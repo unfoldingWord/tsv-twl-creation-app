@@ -53,170 +53,163 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
   console.log('Existing headers:', existing.headers);
   console.log('Existing indices:', { origWords: existingOrigWordsIndex, occurrence: existingOccurrenceIndex, twlink: existingTWLinkIndex });
 
-  // Initialize pointers
-  let existingPointer = 0;
-  let generatedPointer = 0;
-  const mergedRows = [];
-  const usedGeneratedRows = new Set(); // Track which generated rows have been matched
+  // Helper function to normalize Hebrew text
+  const normalizeHebrew = (text) => {
+    if (!text) return text;
+    return text.normalize('NFC');
+  };
 
-  // Helper function to create extended existing row
-  const createExtendedExistingRow = (existingRow) => {
+  // Helper function to create a unique key for row matching
+  const createRowKey = (row, origWordsIndex, occurrenceIndex, twlinkIndex) => {
+    const reference = row[0] || '';
+    const origWords = normalizeHebrew(row[origWordsIndex] || '');
+    const occurrence = row[occurrenceIndex] || '';
+    const twlink = row[twlinkIndex] || '';
+    return `${reference}-${origWords}-${occurrence}-${twlink}`;
+  };
+
+  // Create a map of existing rows keyed by their unique identifier
+  const existingRowsMap = new Map();
+  existingRows.forEach((row, index) => {
+    const key = createRowKey(row, existingOrigWordsIndex, existingOccurrenceIndex, existingTWLinkIndex);
+    existingRowsMap.set(key, { row, originalIndex: index });
+  });
+
+  console.log('Created existing rows map with keys:', Array.from(existingRowsMap.keys()));
+
+  // Process generated rows first - match with existing and mark appropriately
+  const processedRows = [];
+
+  generatedRows.forEach((generatedRow, index) => {
+    const key = createRowKey(generatedRow, generatedOrigWordsIndex, generatedOccurrenceIndex, generatedTWLinkIndex);
+
+    if (existingRowsMap.has(key)) {
+      // Match found - update generated row with existing data
+      const existingData = existingRowsMap.get(key);
+      const existingRow = existingData.row;
+
+      console.log(`Match found for key: ${key}`);
+
+      // Create updated row with existing data in first 6 columns
+      const updatedRow = [...generatedRow];
+
+      // Replace first 6 columns with existing row data
+      for (let i = 0; i < 6 && i < existingRow.length; i++) {
+        updatedRow[i] = existingRow[i];
+      }
+
+      // Handle TWLink disambiguation if different
+      const generatedTWLink = generatedRow[generatedTWLinkIndex];
+      const existingTWLink = existingRow[existingTWLinkIndex];
+
+      if (generatedTWLink !== existingTWLink) {
+        const existingArticle = existingTWLink.split('/').slice(-2).join('/');
+        const generatedArticle = generatedTWLink.split('/').slice(-2).join('/');
+
+        let disambiguations = [generatedArticle];
+        if (generatedRow[8] && generatedRow[8].trim()) {
+          disambiguations = generatedRow[8].trim().replace(/^\(/, '').replace(/\)$/, '').split(',').map(d => d.trim());
+        }
+        if (!disambiguations.includes(existingArticle)) {
+          disambiguations.unshift(existingArticle);
+        }
+        updatedRow[8] = `(${disambiguations.join(', ')})`;
+      }
+
+      // Add "BOTH" to Merge Status column
+      if (existingRows.length > 0) {
+        updatedRow.push('BOTH');
+      }
+
+      processedRows.push(updatedRow);
+
+      // Remove from map since it's been processed
+      existingRowsMap.delete(key);
+    } else {
+      // No match found - mark as NEW
+      const newRow = existingRows.length > 0 ? [...generatedRow, 'NEW'] : generatedRow;
+      processedRows.push(newRow);
+
+      console.log(`No match found for key: ${key} - marked as NEW`);
+    }
+  });
+
+  // Now process remaining existing rows that weren't matched
+  const remainingExistingRows = [];
+  for (const [key, existingData] of existingRowsMap) {
+    const existingRow = existingData.row;
+
+    // Create extended existing row with "OLD" status
     const extendedRow = [...existingRow];
     while (extendedRow.length < generatedHeaders.length) {
       extendedRow.push('');
     }
-
-    // Add "OLD" to "Merge Status" column
     extendedRow.push('OLD');
-    return extendedRow;
-  };
 
-  // Helper function to check if existing row matches generated row
-  const isExactMatch = (generatedRow, existingRow) => {
-    // Use appropriate column indices for each row type
-    const genReference = generatedRow[0];
-    const genOrigWords = generatedRow[generatedOrigWordsIndex];
-    const genOccurrence = generatedRow[generatedOccurrenceIndex];
-    const genTWLink = generatedRow[generatedTWLinkIndex];
-
-    const exReference = existingRow[0]; // Reference is always first column
-    const exOrigWords = existingRow[existingOrigWordsIndex];
-    const exOccurrence = existingRow[existingOccurrenceIndex];
-    const exTWLink = existingRow[existingTWLinkIndex];
-
-    console.log('Comparing:', {
-      genRef: genReference,
-      exRef: exReference,
-      genOrig: genOrigWords,
-      exOrig: exOrigWords,
-      genOcc: genOccurrence,
-      exOcc: exOccurrence,
-      genTWLink: genTWLink,
-      exTWLink: exTWLink
+    remainingExistingRows.push({
+      row: extendedRow,
+      reference: existingRow[0] || '',
+      key: key
     });
 
-    return genReference === exReference &&
-      genOrigWords === exOrigWords &&
-      genOccurrence === exOccurrence &&
-      genTWLink === exTWLink;
-  };
+    console.log(`Remaining existing row with key: ${key} - marked as OLD`);
+  }
 
-  // Helper function to update generated row with existing data
-  const updateGeneratedRow = (generatedRow, existingRow) => {
-    const updatedRow = [...generatedRow];
-    // Replace first 6 columns with existing row data
-    const generatedTWLink = generatedRow[5];
-    const existingTWLink = existingRow[5];
+  // Sort remaining existing rows by reference for proper insertion
+  remainingExistingRows.sort((a, b) => compareReferences(a.reference, b.reference));
 
-    for (let i = 0; i < 6; i++) {
-      updatedRow[i] = existingRow[i];
-    }
-    if (generatedTWLink != existingTWLink) {
-      let existingArticle = existingTWLink.split('/').slice(-2).join('/');
-      let generatedArticle = generatedTWLink.split('/').slice(-2).join('/');
+  // Insert remaining existing rows in the correct positions
+  const finalRows = [];
+  let processedIndex = 0;
+  let remainingIndex = 0;
 
-      let disambiguations = [generatedArticle];
-      if (generatedRow[8].trim()) {
-        disambiguations = generatedRow[8].trim().replace(/^\(/, '').replace(/\)$/, '').split(',').map(d => d.trim());
-      }
-      if (!disambiguations.includes(existingArticle)) {
-        disambiguations.unshift(existingArticle);
-      }
-      updatedRow[8] = `(${disambiguations.join(', ')})`;
+  while (processedIndex < processedRows.length || remainingIndex < remainingExistingRows.length) {
+    // If no more remaining rows, add all processed rows
+    if (remainingIndex >= remainingExistingRows.length) {
+      finalRows.push(...processedRows.slice(processedIndex));
+      break;
     }
 
-    // Add "BOTH" to "Merge Status" column if this link is in 'B'oth Existing and Generated.
-    if (existingRows.length > 0) {
-      updatedRow.push('BOTH');
+    // If no more processed rows, add all remaining rows
+    if (processedIndex >= processedRows.length) {
+      finalRows.push(...remainingExistingRows.slice(remainingIndex).map(item => item.row));
+      break;
     }
-    return updatedRow;
-  };
 
-  // Main merging loop - process existing rows in order
-  while (existingPointer < existingRows.length) {
-    const existingRow = existingRows[existingPointer];
-    const existingRef = existingRow[0] || '';
+    const processedRow = processedRows[processedIndex];
+    const remainingRow = remainingExistingRows[remainingIndex];
+    const processedRef = processedRow[0] || '';
+    const remainingRef = remainingRow.reference;
 
-    // First, add all generated rows with references less than the current existing row
-    while (generatedPointer < generatedRows.length) {
-      const generatedRow = generatedRows[generatedPointer];
-      const generatedRef = generatedRow[0] || '';
+    const refComparison = compareReferences(remainingRef, processedRef);
 
-      // Skip already used rows
-      if (usedGeneratedRows.has(generatedPointer)) {
-        generatedPointer++;
-        continue;
-      }
+    if (refComparison < 0) {
+      // Remaining row comes before processed row
+      finalRows.push(remainingRow.row);
+      remainingIndex++;
+    } else if (refComparison === 0) {
+      // Same reference - check merge status to determine order
+      const processedMergeStatus = processedRow[processedRow.length - 1];
 
-      if (compareReferences(generatedRef, existingRef) < 0) {
-        // Generated reference is less than existing reference, add it
-        const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRow, 'NEW'] : generatedRow;
-        mergedRows.push(extendedGeneratedRow);
-        usedGeneratedRows.add(generatedPointer);
-        generatedPointer++;
+      if (processedMergeStatus === 'OLD') {
+        // Processed OLD row comes first
+        finalRows.push(processedRow);
+        processedIndex++;
       } else {
-        // Generated reference is >= existing reference, break to handle existing row
-        break;
-      }
-    }
-
-    // Now look for a matching generated row with the same reference
-    let matchFound = false;
-    let matchIndex = -1;
-
-    // Search through ALL remaining generated rows for an exact match
-    for (let i = generatedPointer; i < generatedRows.length; i++) {
-      // Skip already used rows
-      if (usedGeneratedRows.has(i)) {
-        continue;
-      }
-
-      const generatedRow = generatedRows[i];
-
-      if (isExactMatch(existingRow, generatedRow)) {
-        matchFound = true;
-        matchIndex = i;
-        break;
-      }
-    }
-
-    if (matchFound) {
-      // Add all generated rows up to the match as NEW (that haven't been used)
-      while (generatedPointer < matchIndex) {
-        if (!usedGeneratedRows.has(generatedPointer)) {
-          const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRows[generatedPointer], 'NEW'] : generatedRows[generatedPointer];
-          mergedRows.push(extendedGeneratedRow);
-          usedGeneratedRows.add(generatedPointer);
-        }
-        generatedPointer++;
-      }
-
-      // Add the matched row with BOTH status
-      const matchedGeneratedRow = generatedRows[matchIndex];
-      mergedRows.push(updateGeneratedRow(matchedGeneratedRow, existingRow));
-      usedGeneratedRows.add(matchIndex);
-
-      // Move pointer past the match if needed
-      if (generatedPointer <= matchIndex) {
-        generatedPointer = matchIndex + 1;
+        // Remaining OLD row comes before NEW/BOTH rows
+        finalRows.push(remainingRow.row);
+        remainingIndex++;
       }
     } else {
-      // No exact match found, insert the existing row as-is
-      mergedRows.push(createExtendedExistingRow(existingRow));
-    }
-
-    existingPointer++;
-  }
-
-  // Add any remaining generated rows that haven't been used
-  for (let i = 0; i < generatedRows.length; i++) {
-    if (!usedGeneratedRows.has(i)) {
-      const extendedGeneratedRow = existingRows.length > 0 ? [...generatedRows[i], 'NEW'] : generatedRows[i];
-      mergedRows.push(extendedGeneratedRow);
+      // Processed row comes before remaining row
+      finalRows.push(processedRow);
+      processedIndex++;
     }
   }
+
+  console.log(`Final merge result: ${finalRows.length} total rows`);
 
   // Rebuild the TSV content
-  const result = [finalHeaders.join('\t'), ...mergedRows.map((row) => row.join('\t'))].join('\n');
+  const result = [finalHeaders.join('\t'), ...finalRows.map((row) => row.join('\t'))].join('\n');
   return result;
 };
