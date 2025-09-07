@@ -46,13 +46,40 @@ You have three ways to import existing TWL content for merging or direct editing
 #### Table Features
 
 **Filtering Options**:
-- **Search**: Find specific references, words, or content
+- **Search**: Find specific references, words, or content across multiple columns
 - **Disambiguation Filter**: Show only rows with disambiguation options
 - **Variant Filter**: Show entries that are variants of other words
 - **Merge Status Filter**: 
   - **Merged**: Show rows where existing content was merged with generated content
   - **Unmerged**: Show rows that are either from existing content only or newly generated
 - **Invalid RC Links**: Show entries with problematic Translation Word links
+
+**Search Functionality**:
+
+The search feature allows you to find content across multiple columns with different matching strategies:
+
+**Exact Match Columns** (case-insensitive):
+- **Reference**: Search for exact Bible references (e.g., "1:1", "gen 1:1")
+- **Strongs**: Search for exact Strong's numbers (e.g., "G123", "h456")
+
+**Exact Match Columns** (case-sensitive):
+- **Merge Status**: Search for exact status values ("OLD", "NEW", "MERGED")
+
+**Partial Match Columns** (case-insensitive, searches within text):
+- **OrigWords**: Search within original language words
+- **TWLink**: Search within Translation Word links
+- **GLQuote**: Search within Gateway Language quotes
+- **Disambiguation**: Search within disambiguation options
+- **Variant of**: Search within variant relationships
+- **ID**: Search within row IDs
+- **Tags**: Search within tag values
+
+**Search Tips**:
+- Search is performed across all available columns simultaneously
+- Results are shown if the search term matches ANY of the columns
+- Use exact matches for precise filtering (references, Strong's numbers, merge status)
+- Use partial matches for broader searches (words, links, quotes)
+- Search is case-insensitive for most columns, but case-sensitive for merge status values
 
 **Row Operations**:
 
