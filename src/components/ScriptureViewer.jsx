@@ -886,7 +886,7 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
           )}
           {glQuote && occurrence && (
             <div style={{ fontSize: '14px', color: '#666', marginLeft: '20px' }}>
-              🎯 Highlighting: "<strong>{glQuote}</strong>" (occurrence {occurrence})
+              🎯 Highlighting: "<strong>{glQuote}</strong>" (Occurrence {occurrence})
               {origWords && origWords !== glQuote && (
                 <div style={{ fontSize: '12px', marginTop: '4px' }}>
                   {isNT ? '🏺 Greek Original' : '📜 Hebrew Original'} Original: "{origWords} (Occurrence {occurrence})"
