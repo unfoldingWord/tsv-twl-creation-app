@@ -1386,25 +1386,6 @@ function App() {
 
                 {/* Content Display */}
                 <Box sx={{ mt: 2 }}>
-                  {/* Temporary Test Button for ScriptureViewer */}
-                  {!scriptureContext && (
-                    <Button
-                      variant="outlined"
-                      onClick={() =>
-                        handleShowScripture({
-                          bookId: 'mat',
-                          chapter: 1,
-                          verse: 1,
-                          quote: 'logos',
-                          occurrence: 1,
-                        })
-                      }
-                      sx={{ mb: 2 }}
-                    >
-                      🧪 Test ScriptureViewer
-                    </Button>
-                  )}
-
                   {viewMode === 'table' ? (
                     <>
                       {/* Scripture Context Viewer */}
