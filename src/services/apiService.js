@@ -31,6 +31,30 @@ const decodeBase64Content = (base64Content) => {
   return new TextDecoder('utf-8').decode(bytes);
 };
 
+// Simple in-memory cache for USFM content
+const usfmCache = new Map();
+const CACHE_DURATION = 1000 * 60 * 30; // 30 minutes
+
+/**
+ * Clear the USFM cache (useful for development or when forcing fresh data)
+ */
+export const clearUSFMCache = () => {
+  usfmCache.clear();
+  console.log('USFM cache cleared');
+};
+
+/**
+ * Get cache statistics
+ */
+export const getCacheStats = () => {
+  const stats = {
+    size: usfmCache.size,
+    entries: Array.from(usfmCache.keys()),
+  };
+  console.log('USFM Cache Stats:', stats);
+  return stats;
+};
+
 /**
  * Fetch USFM content for a specific book, translation, and branch
  */
@@ -41,6 +65,14 @@ export const fetchUSFMContent = async (bookValue, translation = 'ult', dcsHost =
   }
 
   const usfmFileName = bookData.usfm;
+  const cacheKey = `${dcsHost}-${bookValue}-${translation}`;
+
+  // Check cache first
+  const cached = usfmCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+    console.log(`Using cached USFM content for ${translation} ${bookValue}`);
+    return cached.content;
+  }
 
   const headers = {};
   if (dcsToken) {
@@ -60,6 +92,7 @@ export const fetchUSFMContent = async (bookValue, translation = 'ult', dcsHost =
     repo = `en_${translation}`;
   }
 
+  console.log(`Fetching USFM content for ${translation} ${bookValue} from server`);
   const response = await fetch(
     `https://${dcsHost}/api/v1/repos/unfoldingWord/${repo}/contents/${usfmFileName}.usfm?ref=master`,
     { headers }
@@ -70,7 +103,15 @@ export const fetchUSFMContent = async (bookValue, translation = 'ult', dcsHost =
   }
 
   const data = await response.json();
-  return decodeBase64Content(data.content);
+  const content = decodeBase64Content(data.content);
+
+  // Cache the result
+  usfmCache.set(cacheKey, {
+    content,
+    timestamp: Date.now()
+  });
+
+  return content;
 };
 
 /**

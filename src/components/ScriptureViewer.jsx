@@ -124,11 +124,12 @@ const StrongNumber = styled.sup`
 // ScriptureViewer Component - Advanced implementation with word alignment
 const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
   const [scriptureData, setScriptureData] = useState({
-    original: null,
-    ult: null,
-    ust: null,
+    original: {},
+    ult: {},
+    ust: {},
   });
   const [loading, setLoading] = useState(true);
+  const [cacheStatus, setCacheStatus] = useState(''); // Track cache status
   const [hoveredWord, setHoveredWord] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
@@ -191,11 +192,30 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
   };
 
   useEffect(() => {
-    // Fetch scripture data for all three translations
+    // Only fetch scripture data when book changes
+    // Extract all chapters from the USFM files at once
     const loadScripture = async () => {
+      // Check if we already have data for this book
+      const hasBookData =
+        scriptureData.original &&
+        Object.keys(scriptureData.original).length > 0 &&
+        scriptureData.ult &&
+        Object.keys(scriptureData.ult).length > 0 &&
+        scriptureData.ust &&
+        Object.keys(scriptureData.ust).length > 0;
+
+      if (hasBookData && !loading) {
+        console.log('Using cached scripture data for book', bookId, '- chapters available:', Object.keys(scriptureData.original));
+        setCacheStatus('Using cached data');
+        setTimeout(() => setCacheStatus(''), 2000); // Clear status after 2 seconds
+        return; // Don't refetch if we already have the data
+      }
+
       setLoading(true);
+      setCacheStatus('Loading book from server...');
 
       try {
+        console.log('Loading scripture data for book', bookId);
         // Fetch all three translations in parallel
         const [originalContent, ultContent, ustContent] = await Promise.all([
           fetchUSFMContent(bookId, 'original', dcsHost),
@@ -203,15 +223,15 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
           fetchUSFMContent(bookId, 'ust', dcsHost),
         ]);
 
-        // Extract verses for the requested chapter from each translation
-        const originalVerses = extractVersesFromUSFM(originalContent, chapter);
-        const ultVerses = extractVersesFromUSFM(ultContent, chapter);
-        const ustVerses = extractVersesFromUSFM(ustContent, chapter);
+        // Extract ALL chapters from each translation (not just the current chapter)
+        const originalVerses = extractVersesFromUSFM(originalContent); // No chapter parameter = extract all
+        const ultVerses = extractVersesFromUSFM(ultContent); // No chapter parameter = extract all
+        const ustVerses = extractVersesFromUSFM(ustContent); // No chapter parameter = extract all
 
         setScriptureData({
-          original: { [chapter]: originalVerses },
-          ult: { [chapter]: ultVerses },
-          ust: { [chapter]: ustVerses },
+          original: originalVerses, // Store all chapters
+          ult: ultVerses, // Store all chapters
+          ust: ustVerses, // Store all chapters
         });
 
         // Debug: Log quote matching for testing
@@ -235,13 +255,14 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
         });
       } finally {
         setLoading(false);
+        setCacheStatus('');
       }
     };
 
-    if (bookId && chapter && verse) {
+    if (bookId) {
       loadScripture();
     }
-  }, [bookId, chapter, verse, dcsHost]);
+  }, [bookId, dcsHost]); // Only depend on bookId and dcsHost, NOT chapter
 
   // Determine if this is NT or OT using BibleBookData
   const isNT = React.useMemo(() => {
@@ -609,6 +630,7 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <p>Loading scripture...</p>
+            {cacheStatus && <p style={{ fontSize: '14px', color: '#666' }}>{cacheStatus}</p>}
           </div>
         ) : (
           <ScriptureGrid>

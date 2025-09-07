@@ -251,53 +251,101 @@ export const removeAlignments = (usfmContent) => {
 }
 
 /**
- * Extract verses from USFM content for a specific chapter
+ * Extract verses from USFM content for a specific chapter or all chapters
  * @param {string} usfmContent - The USFM content to parse
- * @param {number} chapterNum - The chapter number to extract
- * @return {Object} Object with verse numbers as keys and verse text as values
+ * @param {number} [chapterNum] - Optional chapter number to extract (if not provided, extracts all chapters)
+ * @return {Object} Object with chapter numbers as keys, each containing verse objects
  */
 export const extractVersesFromUSFM = (usfmContent, chapterNum) => {
   try {
     const usfmJSON = usfmjs.toJSON(usfmContent);
-    const verses = {};
+    const allChapters = {};
 
-    if (usfmJSON.chapters && usfmJSON.chapters[chapterNum]) {
-      const chapterData = usfmJSON.chapters[chapterNum];
+    if (usfmJSON.chapters) {
+      // If specific chapter requested, only process that one
+      if (chapterNum !== undefined && usfmJSON.chapters[chapterNum]) {
+        const chapterData = usfmJSON.chapters[chapterNum];
+        const verses = {};
 
-      // Extract verses from the chapter
-      Object.keys(chapterData).forEach(verseNum => {
-        if (verseNum !== 'front') {
-          const verseData = chapterData[verseNum];
-          if (verseData && verseData.verseObjects) {
-            // Extract text from verse objects, properly handling word and milestone objects
-            let verseText = '';
-            verseData.verseObjects.forEach(obj => {
-              if (obj.text) {
-                verseText += obj.text + ' ';
-              } else if (obj.type === 'word') {
-                verseText += obj.text + ' ';
-              } else if (obj.type === 'milestone') {
-                verseText += parseMilestone(obj) + ' ';
-              } else if (obj.children) {
-                // Handle nested objects recursively
-                obj.children.forEach(child => {
-                  if (child.text) {
-                    verseText += child.text + ' ';
-                  } else if (child.type === 'word') {
-                    verseText += child.text + ' ';
-                  } else if (child.type === 'milestone') {
-                    verseText += parseMilestone(child) + ' ';
-                  }
-                });
-              }
-            });
-            verses[parseInt(verseNum)] = verseText.trim();
+        // Extract verses from the specific chapter
+        Object.keys(chapterData).forEach(verseNum => {
+          if (verseNum !== 'front') {
+            const verseData = chapterData[verseNum];
+            if (verseData && verseData.verseObjects) {
+              // Extract text from verse objects, properly handling word and milestone objects
+              let verseText = '';
+              verseData.verseObjects.forEach(obj => {
+                if (obj.text) {
+                  verseText += obj.text + ' ';
+                } else if (obj.type === 'word') {
+                  verseText += obj.text + ' ';
+                } else if (obj.type === 'milestone') {
+                  verseText += parseMilestone(obj) + ' ';
+                } else if (obj.children) {
+                  // Handle nested objects recursively
+                  obj.children.forEach(child => {
+                    if (child.text) {
+                      verseText += child.text + ' ';
+                    } else if (child.type === 'word') {
+                      verseText += child.text + ' ';
+                    } else if (child.type === 'milestone') {
+                      verseText += parseMilestone(child) + ' ';
+                    }
+                  });
+                }
+              });
+              verses[parseInt(verseNum)] = verseText.trim();
+            }
           }
+        });
+
+        return { [chapterNum]: verses };
+      }
+
+      // If no specific chapter requested, extract all chapters
+      Object.keys(usfmJSON.chapters).forEach(chapterKey => {
+        const chapterData = usfmJSON.chapters[chapterKey];
+        const verses = {};
+
+        // Extract verses from this chapter
+        Object.keys(chapterData).forEach(verseNum => {
+          if (verseNum !== 'front') {
+            const verseData = chapterData[verseNum];
+            if (verseData && verseData.verseObjects) {
+              // Extract text from verse objects, properly handling word and milestone objects
+              let verseText = '';
+              verseData.verseObjects.forEach(obj => {
+                if (obj.text) {
+                  verseText += obj.text + ' ';
+                } else if (obj.type === 'word') {
+                  verseText += obj.text + ' ';
+                } else if (obj.type === 'milestone') {
+                  verseText += parseMilestone(obj) + ' ';
+                } else if (obj.children) {
+                  // Handle nested objects recursively
+                  obj.children.forEach(child => {
+                    if (child.text) {
+                      verseText += child.text + ' ';
+                    } else if (child.type === 'word') {
+                      verseText += child.text + ' ';
+                    } else if (child.type === 'milestone') {
+                      verseText += parseMilestone(child) + ' ';
+                    }
+                  });
+                }
+              });
+              verses[parseInt(verseNum)] = verseText.trim();
+            }
+          }
+        });
+
+        if (Object.keys(verses).length > 0) {
+          allChapters[parseInt(chapterKey)] = verses;
         }
       });
     }
 
-    return verses;
+    return allChapters;
   } catch (error) {
     console.error('Error extracting verses from USFM:', error);
     return {};
