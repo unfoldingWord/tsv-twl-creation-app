@@ -1053,7 +1053,7 @@ function App() {
                 TSV TWL Creation App
               </Typography>
               <Typography component="div" sx={{ fontSize: '0.875rem', lineHeight: 1, opacity: 0.95 }}>
-                (v{packageInfo.version})
+                (v{packageInfo.version}, DCS: {dcsHost === 'qa.door43.org' ? 'QA' : dcsHost === 'develop.door43.org' ? 'DEV' : dcsHost === 'git.door43.org' ? 'PROD' : dcsHost})
               </Typography>
             </Box>
 

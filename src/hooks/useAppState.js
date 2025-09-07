@@ -15,9 +15,18 @@ export const useAppState = () => {
   const getInitialDcsHost = () => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('server')) {
-      return params.get('server').toLowerCase() === 'qa' ? 'qa.door43.org' : 'git.door43.org';
+      const server = params.get('server').toLowerCase();
+      if (server === 'qa') {
+        return 'qa.door43.org';
+      } else if (server === 'dev' || server === 'develop') {
+        return 'develop.door43.org';
+      } else if (server !== 'prod' && server !== 'production' && server !== 'git') {
+        return server;
+      } else {
+        return 'git.door43.org';
+      }
     }
-    if (window.location.hostname === 'localhost') {
+    if (window.location.hostname === 'localhost' || window.location.hostname.includes('--')) {
       return 'qa.door43.org';
     }
     return 'git.door43.org';
