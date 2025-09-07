@@ -1,12 +1,13 @@
 /**
  * ScriptureViewer - Advanced component with word alignment and lexicon features
+ * Updated to use usfm-js for proper USFM parsing and lexicon extraction
  */
 
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
+import { toJSON } from 'usfm-js';
 import { BibleBookData } from '../common/books';
 import { fetchUSFMContent } from '../services/apiService';
-import { extractVersesFromUSFM } from '../utils/usfmUtils';
 import { normalizeHebrewText } from '../utils/unlinkedWords';
 
 // Styled components
@@ -85,7 +86,9 @@ const ScriptureText = styled.div`
   color: #333;
 `;
 
-const AlignedWord = styled.span`
+const AlignedWord = styled.span.withConfig({
+  shouldForwardProp: (prop) => !['isHighlighted', 'isAligned'].includes(prop),
+})`
   background: ${(props) => (props.isHighlighted ? '#ffeb3b' : props.isAligned ? '#e3f2fd' : 'transparent')};
   padding: 2px 4px;
   border-radius: 3px;
@@ -121,6 +124,171 @@ const StrongNumber = styled.sup`
   font-weight: bold;
 `;
 
+// Helper function to recursively extract text and lexicon data from verseObjects
+const extractVerseContent = (verseObjects) => {
+  let text = '';
+  const lexiconData = [];
+
+  const processObject = (obj) => {
+    // Handle text objects
+    if (obj.type === 'text') {
+      text += obj.text || '';
+      return;
+    }
+
+    // Handle word objects
+    if (obj.type === 'word' && obj.text) {
+      text += obj.text;
+      return;
+    }
+
+    // Handle milestone objects (alignment markers)
+    if (obj.type === 'milestone') {
+      // Extract lexicon data from milestone attributes
+      const strong = obj.strong || obj.attributes?.strong || '';
+      const lemma = obj.lemma || obj.attributes?.lemma || '';
+      const morph = obj.morph || obj.attributes?.morph || '';
+      const content = obj.content || '';
+
+      // Process children to get the translated text
+      let childText = '';
+      const childLexicon = [];
+
+      if (obj.children) {
+        obj.children.forEach((child) => {
+          if (child.type === 'word' && child.text) {
+            childText += child.text;
+            // Associate milestone lexicon data with each word
+            if (strong || lemma) {
+              childLexicon.push({
+                word: child.text,
+                strongs: strong,
+                lemma: lemma,
+                morphology: morph,
+                definition: lemma || content || '',
+                originalWord: content || lemma || '',
+              });
+            }
+          } else if (child.type === 'text') {
+            childText += child.text || '';
+          } else if (child.type === 'milestone') {
+            // Handle nested milestones recursively
+            // Extract lexicon data from the nested milestone
+            const nestedStrong = child.strong || child.attributes?.strong || '';
+            const nestedLemma = child.lemma || child.attributes?.lemma || '';
+            const nestedMorph = child.morph || child.attributes?.morph || '';
+            const nestedContent = child.content || '';
+
+            // Process nested milestone's children
+            if (child.children) {
+              child.children.forEach((grandChild) => {
+                if (grandChild.type === 'word' && grandChild.text) {
+                  childText += grandChild.text;
+                  // Use nested milestone's lexicon data for the word
+                  if (nestedStrong || nestedLemma) {
+                    console.log('Found nested milestone word:', {
+                      word: grandChild.text,
+                      strong: nestedStrong,
+                      lemma: nestedLemma,
+                      parentStrong: strong,
+                      parentLemma: lemma,
+                    });
+                    childLexicon.push({
+                      word: grandChild.text,
+                      strongs: nestedStrong,
+                      lemma: nestedLemma,
+                      morphology: nestedMorph,
+                      definition: nestedLemma || nestedContent || '',
+                      originalWord: nestedContent || nestedLemma || '',
+                    });
+                  }
+                } else if (grandChild.type === 'text') {
+                  childText += grandChild.text || '';
+                }
+              });
+            }
+          }
+        });
+      }
+
+      text += childText;
+      lexiconData.push(...childLexicon);
+      return;
+    }
+
+    // Handle any other objects that might have children
+    if (obj.children) {
+      obj.children.forEach((child) => {
+        processObject(child);
+      });
+    }
+  };
+
+  verseObjects.forEach((obj) => processObject(obj));
+
+  console.log('Extracted verse content:', {
+    text: text.substring(0, 200) + (text.length > 200 ? '...' : ''),
+    lexiconCount: lexiconData.length,
+    lexiconSample: lexiconData.slice(0, 5),
+  });
+
+  return {
+    text: text.trim(),
+    lexicon: lexiconData,
+  };
+};
+
+// Helper function to parse USFM content using usfm-js
+const parseUSFMContent = (usfmContent, contentType = 'unknown') => {
+  try {
+    console.log(`Parsing ${contentType} USFM content with usfm-js...`);
+    const usfmJSON = toJSON(usfmContent);
+
+    // Debug specific verse for Jude 1:3
+    if (usfmJSON.chapters?.['1']?.['3']?.verseObjects) {
+      console.log(`${contentType} Jude 1:3 verse objects:`, JSON.stringify(usfmJSON.chapters['1']['3'].verseObjects, null, 2));
+    }
+
+    console.log(`${contentType} USFM JSON structure sample:`, JSON.stringify(usfmJSON.chapters?.['1']?.['1']?.verseObjects?.slice(0, 2), null, 2));
+    const parsedChapters = {};
+
+    if (usfmJSON.chapters) {
+      Object.keys(usfmJSON.chapters).forEach((chapterKey) => {
+        const chapterData = usfmJSON.chapters[chapterKey];
+        const verses = {};
+
+        Object.keys(chapterData).forEach((verseKey) => {
+          if (verseKey !== 'front' && chapterData[verseKey]?.verseObjects) {
+            const verseContent = extractVerseContent(chapterData[verseKey].verseObjects);
+            verses[parseInt(verseKey)] = verseContent;
+
+            // Special debug for verse 3 (Jude 1:3)
+            if (parseInt(verseKey) === 3 && parseInt(chapterKey) === 1) {
+              console.log(`🔍 Special debug for ${contentType} chapter ${chapterKey} verse ${verseKey}:`, {
+                rawVerseObjects: chapterData[verseKey].verseObjects,
+                extractedText: verseContent.text,
+                extractedLexicon: verseContent.lexicon,
+                salvationInText: verseContent.text.includes('salvation'),
+                salvationLexiconEntries: verseContent.lexicon.filter((entry) => entry.word.toLowerCase().includes('salvation')),
+              });
+            }
+          }
+        });
+
+        if (Object.keys(verses).length > 0) {
+          parsedChapters[parseInt(chapterKey)] = verses;
+        }
+      });
+    }
+
+    console.log('Parsed', Object.keys(parsedChapters).length, 'chapters');
+    return parsedChapters;
+  } catch (error) {
+    console.error('Error parsing USFM content:', error);
+    return {};
+  }
+};
+
 // ScriptureViewer Component - Advanced implementation with word alignment
 const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
   const [scriptureData, setScriptureData] = useState({
@@ -130,7 +298,7 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
   });
   const [loading, setLoading] = useState(true);
   const [cacheStatus, setCacheStatus] = useState(''); // Track cache status
-  const [hoveredWord, setHoveredWord] = useState(null);
+  const [selectedWord, setSelectedWord] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
   // Extract data from scriptureContext
@@ -151,45 +319,65 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
     }
   }, [scriptureContext, scriptureData]);
 
-  // Mock alignment data - in a real implementation, this would come from alignment APIs
-  const mockAlignmentData = {
-    // Greek/Hebrew words mapped to English words with lexicon data
-    ἐν: {
-      english: ['In', 'in', 'by', 'with'],
-      strongs: 'G1722',
-      lemma: 'ἐν',
-      definition: 'in, by, with, among',
-      morphology: 'Prep',
-    },
-    ἀρχῇ: {
-      english: ['beginning', 'the beginning'],
-      strongs: 'G746',
-      lemma: 'ἀρχή',
-      definition: 'beginning, origin, first',
-      morphology: 'N-DFS',
-    },
-    ἦν: {
-      english: ['was'],
-      strongs: 'G1510',
-      lemma: 'εἰμί',
-      definition: 'to be, exist',
-      morphology: 'V-IIA-3S',
-    },
-    ὁ: {
-      english: ['the', 'The'],
-      strongs: 'G3588',
-      lemma: 'ὁ',
-      definition: 'the, this, that',
-      morphology: 'T-NSM',
-    },
-    λόγος: {
-      english: ['Word', 'word'],
-      strongs: 'G3056',
-      lemma: 'λόγος',
-      definition: 'word, speech, divine utterance',
-      morphology: 'N-NSM',
-    },
-  };
+  // Build lexicon lookup from real USFM data parsed with usfm-js
+  const lexiconLookup = React.useMemo(() => {
+    const lookup = {};
+
+    // Process all translations to build comprehensive lexicon data
+    ['original', 'ult', 'ust'].forEach((translation) => {
+      if (scriptureData[translation]) {
+        Object.values(scriptureData[translation]).forEach((chapterData) => {
+          Object.values(chapterData).forEach((verseData) => {
+            if (verseData.lexicon) {
+              verseData.lexicon.forEach((lexiconItem) => {
+                if (lexiconItem.word && (lexiconItem.strongs || lexiconItem.lemma)) {
+                  // For original language, use the word directly
+                  if (translation === 'original') {
+                    lookup[lexiconItem.word] = {
+                      strongs: lexiconItem.strongs,
+                      lemma: lexiconItem.lemma,
+                      definition: lexiconItem.definition || lexiconItem.lemma || '',
+                      morphology: lexiconItem.morphology,
+                      originalWord: lexiconItem.originalWord,
+                    };
+                  } else {
+                    // For English translations, create lowercase mapping
+                    const wordKey = lexiconItem.word.toLowerCase();
+                    if (!lookup[wordKey] || !lookup[wordKey].strongs) {
+                      lookup[wordKey] = {
+                        strongs: lexiconItem.strongs,
+                        lemma: lexiconItem.lemma,
+                        definition: lexiconItem.definition || lexiconItem.lemma || '',
+                        morphology: lexiconItem.morphology,
+                        originalWord: lexiconItem.originalWord,
+                      };
+                    }
+                  }
+                }
+              });
+            }
+          });
+        });
+      }
+    });
+
+    console.log('Built lexicon lookup with', Object.keys(lookup).length, 'entries');
+    console.log('Sample lexicon entries:', Object.entries(lookup).slice(0, 10));
+
+    // Special debug for "salvation" word
+    const salvationKey = 'salvation';
+    if (lookup[salvationKey]) {
+      console.log('✅ Found "salvation" in lexicon:', lookup[salvationKey]);
+    } else {
+      console.log('❌ "salvation" not found in lexicon');
+      console.log(
+        'Available words starting with "s":',
+        Object.keys(lookup).filter((key) => key.startsWith('s'))
+      );
+    }
+
+    return lookup;
+  }, [scriptureData]);
 
   useEffect(() => {
     // Only fetch scripture data when book changes
@@ -224,9 +412,9 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
         ]);
 
         // Extract ALL chapters from each translation (not just the current chapter)
-        const originalVerses = extractVersesFromUSFM(originalContent); // No chapter parameter = extract all
-        const ultVerses = extractVersesFromUSFM(ultContent); // No chapter parameter = extract all
-        const ustVerses = extractVersesFromUSFM(ustContent); // No chapter parameter = extract all
+        const originalVerses = parseUSFMContent(originalContent, 'original'); // No chapter parameter = extract all
+        const ultVerses = parseUSFMContent(ultContent, 'ult'); // No chapter parameter = extract all
+        const ustVerses = parseUSFMContent(ustContent, 'ust'); // No chapter parameter = extract all
 
         setScriptureData({
           original: originalVerses, // Store all chapters
@@ -271,38 +459,75 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
     return bookData ? bookData.testament === 'new' : false;
   }, [bookId]);
 
+  // Function to clean word for comparison (removes punctuation and normalizes)
+  const cleanWordForMatching = (word) => {
+    if (!word) return '';
+
+    // First apply Hebrew normalization, then remove punctuation
+    let cleaned = normalizeHebrewText(word);
+
+    // Remove punctuation but preserve Greek and Hebrew characters
+    // \u0370-\u03FF = Greek and Coptic
+    // \u1F00-\u1FFF = Greek Extended
+    // \u0590-\u05FF = Hebrew
+    cleaned = cleaned.replace(/[^\w\s\u0370-\u03FF\u1F00-\u1FFF\u0590-\u05FF]/g, '');
+
+    return cleaned.trim().toLowerCase();
+  };
+
   // Advanced quote matching function that handles & separators and occurrence
   const findQuoteMatches = (text, quote, targetOccurrence = 1) => {
     if (!quote || !text) return [];
 
     const words = text.split(/\s+/);
-    const normalizedWords = words.map((word) => normalizeHebrewText(word));
-    const normalizedQuote = normalizeHebrewText(quote);
+    // Clean words for comparison (removes punctuation and normalizes)
+    const cleanedWords = words.map(cleanWordForMatching);
 
-    // Split quote by & to get individual parts
-    const quoteParts = normalizedQuote.split(' & ').map((part) => part.trim());
+    // For quotes with &, we need to preserve the & separators but clean the individual parts
+    // Split first, then clean each part
+    const quoteParts = quote
+      .split(' & ')
+      .map((part) => {
+        const cleanedPart = cleanWordForMatching(part);
+        return cleanedPart.trim();
+      })
+      .filter((part) => part);
+
+    console.log('🔍 Quote matching debug:', {
+      originalQuote: quote,
+      quoteParts,
+      textSample: words.slice(0, 10).join(' '),
+      cleanedTextSample: cleanedWords.slice(0, 10).join(' '),
+    });
+
+    // Additional validation
+    if (quoteParts.length === 0) {
+      console.log('No valid quote parts after cleaning and splitting:', { originalQuote: quote, quoteParts });
+      return [];
+    }
 
     if (quoteParts.length === 1) {
       // Simple case: no & separators, just find occurrences
-      return findSimpleMatches(normalizedWords, normalizedQuote, targetOccurrence, words);
+      const cleanedQuote = quoteParts[0];
+      return findSimpleMatches(cleanedWords, cleanedQuote, targetOccurrence, words);
     } else {
       // Complex case: & separators require sequential matching
-      return findSequentialMatches(normalizedWords, quoteParts, targetOccurrence, words);
+      return findSequentialMatches(cleanedWords, quoteParts, targetOccurrence, words);
     }
   };
 
   // Find simple matches (no & separators)
-  const findSimpleMatches = (normalizedWords, normalizedQuote, targetOccurrence, originalWords) => {
+  const findSimpleMatches = (cleanedWords, cleanedQuote, targetOccurrence, originalWords) => {
     const matches = [];
     let occurrenceCount = 0;
 
     // If quote has multiple words, find the sequence
-    const quoteWords = normalizedQuote.split(/\s+/);
+    const quoteWords = cleanedQuote.split(/\s+/).filter((word) => word);
     if (quoteWords.length > 1) {
-      for (let i = 0; i <= normalizedWords.length - quoteWords.length; i++) {
+      for (let i = 0; i <= cleanedWords.length - quoteWords.length; i++) {
         let match = true;
         for (let j = 0; j < quoteWords.length; j++) {
-          if (normalizedWords[i + j] !== quoteWords[j]) {
+          if (cleanedWords[i + j] !== quoteWords[j]) {
             match = false;
             break;
           }
@@ -324,8 +549,8 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
       }
     } else {
       // Single word quote
-      for (let i = 0; i < normalizedWords.length; i++) {
-        if (normalizedWords[i] === normalizedQuote) {
+      for (let i = 0; i < cleanedWords.length; i++) {
+        if (cleanedWords[i] === cleanedQuote) {
           occurrenceCount++;
           if (occurrenceCount === targetOccurrence) {
             matches.push({
@@ -343,26 +568,47 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
   };
 
   // Find sequential matches with & separators
-  const findSequentialMatches = (normalizedWords, quoteParts, targetOccurrence, originalWords) => {
-    console.log('findSequentialMatches called:', { quoteParts, targetOccurrence, textLength: normalizedWords.length });
+  const findSequentialMatches = (cleanedWords, quoteParts, targetOccurrence, originalWords) => {
+    console.log('findSequentialMatches called:', { quoteParts, targetOccurrence, textLength: cleanedWords.length });
+    console.log('🔍 Debug quote parts and text:', {
+      originalQuote: quoteParts.join(' & '),
+      cleanedText: cleanedWords.join(' '),
+      textSample: cleanedWords.slice(0, 20).join(' '),
+    });
+
+    // Validate inputs
+    if (!quoteParts || quoteParts.length === 0) {
+      console.log('No valid quote parts found');
+      return [];
+    }
+
     const matches = [];
     let globalOccurrenceCount = 0;
 
     // For & separated quotes, the occurrence applies only to the first part
     const firstPart = quoteParts[0];
-    const firstPartWords = firstPart.split(/\s+/);
+    if (!firstPart) {
+      console.log('First part is undefined or empty');
+      return [];
+    }
+
+    const firstPartWords = firstPart.split(/\s+/).filter((word) => word);
     console.log('First part analysis:', { firstPart, firstPartWords, firstPartLength: firstPartWords.length });
 
+    // Validate first part has actual words
+    if (firstPartWords.length === 0) {
+      console.log('First part has no valid words after cleaning');
+      return [];
+    }
+
     // Find the target occurrence of the first part (which may be multiple words)
-    for (let i = 0; i <= normalizedWords.length - firstPartWords.length; i++) {
+    for (let i = 0; i <= cleanedWords.length - firstPartWords.length; i++) {
       let match = true;
       for (let j = 0; j < firstPartWords.length; j++) {
-        const textWord = normalizedWords[i + j];
+        const textWord = cleanedWords[i + j];
         const quoteWord = firstPartWords[j];
         if (textWord !== quoteWord) {
-          if (textWord.toLowerCase() === quoteWord.toLowerCase()) {
-            console.log(`Case mismatch at position ${i + j}: "${textWord}" vs "${quoteWord}"`);
-          }
+          console.log(`🔍 Mismatch at word ${j}: "${textWord}" vs "${quoteWord}" at position ${i + j}`);
           match = false;
           break;
         }
@@ -370,7 +616,7 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
       if (match) {
         globalOccurrenceCount++;
         console.log(
-          `Found occurrence ${globalOccurrenceCount} of first part at position ${i}:`,
+          `✅ Found occurrence ${globalOccurrenceCount} of first part "${firstPart}" at position ${i}:`,
           firstPartWords.map((_, j) => originalWords[i + j])
         );
         if (globalOccurrenceCount === targetOccurrence) {
@@ -388,7 +634,7 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
           // Now try to find the remaining parts starting from after the first part
           const remainingParts = quoteParts.slice(1);
           console.log('Looking for remaining parts:', remainingParts);
-          const sequenceMatch = findRemainingParts(normalizedWords, i + firstPartWords.length, remainingParts, originalWords);
+          const sequenceMatch = findRemainingParts(cleanedWords, i + firstPartWords.length, remainingParts, originalWords);
           if (sequenceMatch) {
             matches.push(...sequenceMatch);
             console.log('Found complete sequence:', matches);
@@ -405,27 +651,45 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
   };
 
   // Find remaining parts after the first part has been matched
-  const findRemainingParts = (normalizedWords, startIndex, remainingParts, originalWords) => {
-    console.log('findRemainingParts called:', { startIndex, remainingParts, availableWords: normalizedWords.slice(startIndex, startIndex + 20) });
+  const findRemainingParts = (cleanedWords, startIndex, remainingParts, originalWords) => {
+    console.log('findRemainingParts called:', { startIndex, remainingParts, availableWords: cleanedWords.slice(startIndex, startIndex + 20) });
+
+    // Validate inputs
+    if (!remainingParts || remainingParts.length === 0) {
+      console.log('No remaining parts to find');
+      return [];
+    }
+
     const matches = [];
     let currentWordIndex = startIndex;
 
     for (let partIndex = 0; partIndex < remainingParts.length; partIndex++) {
       const part = remainingParts[partIndex];
-      const partWords = part.split(/\s+/);
+
+      // Validate part
+      if (!part || typeof part !== 'string') {
+        console.log(`Invalid part at index ${partIndex}:`, part);
+        return null; // Return null to indicate failure
+      }
+
+      const partWords = part.split(/\s+/).filter((word) => word);
       console.log(`Looking for part ${partIndex}: "${part}" (words: ${partWords}) starting from index ${currentWordIndex}`);
+
+      // If no valid words in this part, skip it
+      if (partWords.length === 0) {
+        console.log(`No valid words in part ${partIndex}, skipping`);
+        continue;
+      }
 
       // Find this part, allowing for gaps (0 or more words between parts)
       let found = false;
-      for (let j = currentWordIndex; j <= normalizedWords.length - partWords.length; j++) {
+      for (let j = currentWordIndex; j <= cleanedWords.length - partWords.length; j++) {
         let match = true;
         for (let k = 0; k < partWords.length; k++) {
-          const textWord = normalizedWords[j + k];
+          const textWord = cleanedWords[j + k];
           const quoteWord = partWords[k];
           if (textWord !== quoteWord) {
-            if (textWord.toLowerCase() === quoteWord.toLowerCase()) {
-              console.log(`Case mismatch in remaining parts at position ${j + k}: "${textWord}" vs "${quoteWord}"`);
-            }
+            console.log(`Word mismatch in remaining parts at position ${j + k}: "${textWord}" vs "${quoteWord}"`);
             match = false;
             break;
           }
@@ -502,32 +766,61 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
       const isHighlighted = matches.some((match) => index >= match.startIndex && index <= match.endIndex);
 
       // Find alignment data for this word (for tooltips)
-      const alignmentKey = Object.keys(mockAlignmentData).find((key) => mockAlignmentData[key].english.some((eng) => eng.toLowerCase() === word.toLowerCase()));
+      let alignmentInfo = null;
+      if (isOriginal) {
+        // For original language, look up directly in lexicon
+        alignmentInfo = lexiconLookup[word] || null;
+        console.log(`Original word "${word}" alignment:`, alignmentInfo);
+      } else {
+        // For English translations, use lowercase lookup in lexicon
+        // Clean the word by removing punctuation for lexicon lookup
+        const cleanWord = word.toLowerCase().replace(/[^\w]/g, '');
+        alignmentInfo = lexiconLookup[cleanWord] || null;
+        console.log(`English word "${word}" (cleaned: "${cleanWord}") alignment:`, alignmentInfo);
 
-      const alignmentInfo = alignmentKey ? mockAlignmentData[alignmentKey] : null;
+        // Special debug for "salvation"
+        if (cleanWord === 'salvation') {
+          console.log('🔍 SALVATION DEBUG:', {
+            originalWord: word,
+            cleanWord,
+            hasKey: cleanWord in lexiconLookup,
+            alignmentInfo,
+            allKeysWithSalvation: Object.keys(lexiconLookup).filter((key) => key.includes('salvation')),
+          });
+        }
+      }
 
       elements.push(
         <AlignedWord
           key={`${word}-${index}`}
           isHighlighted={isHighlighted}
           isAligned={!!alignmentInfo}
-          onMouseEnter={(e) => {
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent event bubbling
+            console.log('Word clicked:', word, 'alignmentInfo:', alignmentInfo, 'isOriginal:', isOriginal);
             if (alignmentInfo) {
-              setHoveredWord(alignmentInfo);
-              // Calculate tooltip position once when entering
-              const rect = e.target.getBoundingClientRect();
-              setTooltipPosition({
-                x: rect.left + rect.width / 2,
-                y: rect.top - 10, // Position above the word
-              });
+              // If clicking the same word, close the tooltip
+              if (selectedWord?.strongs === alignmentInfo.strongs) {
+                console.log('Closing tooltip for same word');
+                setSelectedWord(null);
+              } else {
+                // Otherwise, show tooltip for this word
+                console.log('Showing tooltip for word:', word, alignmentInfo);
+                setSelectedWord(alignmentInfo);
+                // Calculate tooltip position
+                const rect = e.target.getBoundingClientRect();
+                setTooltipPosition({
+                  x: rect.left + rect.width / 2,
+                  y: rect.top - 10, // Position above the word
+                });
+              }
+            } else {
+              console.log('No alignment info found for word:', word);
             }
-          }}
-          onMouseLeave={() => {
-            setHoveredWord(null);
           }}
         >
           {word}
-          {alignmentInfo && !isOriginal && hoveredWord?.strongs === alignmentInfo.strongs && <StrongNumber>{alignmentInfo.strongs}</StrongNumber>}
+          {alignmentInfo && !isOriginal && selectedWord?.strongs === alignmentInfo.strongs && <StrongNumber>{alignmentInfo.strongs}</StrongNumber>}
         </AlignedWord>
       );
 
@@ -557,7 +850,7 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
         console.log(`Verse ${i} data:`, currentChapter[i]);
         verses.push({
           verse: i,
-          text: currentChapter[i],
+          text: currentChapter[i].text, // Extract just the text string, not the whole object
           morphology: [], // Empty for now until morphological data is working
           isCurrent: i === verse,
         });
@@ -581,11 +874,16 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
 
   return (
     <ViewerContainer>
-      <ViewerContent>
+      <ViewerContent onClick={() => setSelectedWord(null)}>
         <Header>
           <h2 style={{ margin: 0 }}>
             📖 Scripture for {BibleBookData[bookId].title} {chapter}:{verse}
           </h2>
+          {selectedWord && (
+            <div style={{ fontSize: '12px', color: '#007acc', marginTop: '4px' }}>
+              🔍 Selected: {selectedWord.originalWord || selectedWord.lemma} ({selectedWord.strongs})
+            </div>
+          )}
           {glQuote && occurrence && (
             <div style={{ fontSize: '14px', color: '#666', marginLeft: '20px' }}>
               🎯 Highlighting: "<strong>{glQuote}</strong>" (occurrence {occurrence})
@@ -602,7 +900,7 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
         </Header>
 
         {/* Tooltip for word information */}
-        {hoveredWord && (
+        {selectedWord && (
           <Tooltip
             style={{
               position: 'fixed',
@@ -610,20 +908,23 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
               top: `${tooltipPosition.y}px`,
               transform: 'translate(-50%, -100%)',
               pointerEvents: 'none',
+              zIndex: 10000,
             }}
           >
             <div>
-              <strong>Original:</strong> {hoveredWord.lemma}
+              <strong>Original:</strong> {selectedWord.originalWord || selectedWord.lemma}
             </div>
             <div>
-              <strong>Strong's:</strong> {hoveredWord.strongs}
+              <strong>Strong's:</strong> {selectedWord.strongs}
             </div>
             <div>
-              <strong>Definition:</strong> {hoveredWord.definition}
+              <strong>Definition:</strong> {selectedWord.definition}
             </div>
-            <div>
-              <strong>Morphology:</strong> {hoveredWord.morphology}
-            </div>
+            {selectedWord.morphology && (
+              <div>
+                <strong>Morphology:</strong> {selectedWord.morphology}
+              </div>
+            )}
           </Tooltip>
         )}
 

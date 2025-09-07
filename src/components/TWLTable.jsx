@@ -28,13 +28,24 @@ import {
   FormGroup,
   FormControlLabel,
   Checkbox,
+  Modal,
+  Link,
 } from '@mui/material';
-import { Delete as DeleteIcon, Search as SearchIcon, Clear as ClearIcon, FilterList as FilterIcon, Edit as EditIcon, MenuBook as BookIcon } from '@mui/icons-material';
+import {
+  Delete as DeleteIcon,
+  Search as SearchIcon,
+  Clear as ClearIcon,
+  FilterList as FilterIcon,
+  Edit as EditIcon,
+  MenuBook as BookIcon,
+  Close as CloseIcon,
+} from '@mui/icons-material';
 import { RxLinkBreak2 as UnlinkIcon } from 'react-icons/rx';
 import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConverters.js';
 import { truncateContextAroundWord } from '../utils/tsvUtils.js';
 import { parseDisambiguationOptions, renderDisambiguationText } from '../utils/disambiguationUtils.js';
 import JSZip from 'jszip';
+import { marked } from 'marked';
 
 const TWLTable = ({
   tableData,
@@ -64,8 +75,15 @@ const TWLTable = ({
   const [editingTWLink, setEditingTWLink] = useState(null);
   const [editValue, setEditValue] = useState('');
 
+  // State for TW article modal
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalContent, setModalContent] = useState('');
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalRcLink, setModalRcLink] = useState('');
+
   // Memoized fetch and load of en_tw zip file
   const [twRcLinks, setTwRcLinks] = useState([]);
+  const [twZip, setTwZip] = useState(null);
 
   useEffect(() => {
     async function fetchTwArticleRcLinks() {
@@ -73,6 +91,10 @@ const TWLTable = ({
         const response = await fetch(`https://${dcsHost}/unfoldingWord/en_tw/archive/master.zip`);
         const blob = await response.blob();
         const zip = await JSZip.loadAsync(blob);
+
+        // Store the full zip for article content extraction
+        setTwZip(zip);
+
         // Get all article paths that start with en_tw/bible and end with .md
         const rcLinks = Object.keys(zip.files)
           .filter((filePath) => filePath.startsWith('en_tw/bible/') && filePath.endsWith('.md'))
@@ -84,6 +106,114 @@ const TWLTable = ({
     }
     fetchTwArticleRcLinks();
   }, [dcsHost]);
+
+  // Function to get the first line (title) of a TW article
+  const getTWArticleTitle = async (rcLink) => {
+    if (!twZip) return null;
+
+    try {
+      // Convert RC link to file path
+      // rc://*/tw/dict/bible/kt/jesus -> en_tw/bible/kt/jesus.md
+      const pathMatch = rcLink.match(/rc:\/\/\*\/tw\/dict\/(.+)/);
+      if (!pathMatch) return null;
+
+      const filePath = `en_tw/${pathMatch[1]}.md`;
+      const file = twZip.files[filePath];
+
+      if (!file) return null;
+
+      const content = await file.async('string');
+      const firstLine = content.split('\n')[0];
+
+      // Remove markdown header syntax
+      return firstLine.replace(/^#\s*/, '').trim();
+    } catch (err) {
+      console.warn(`Error reading TW article: ${err.message}`);
+      return null;
+    }
+  };
+
+  // Function to get TW article title for disambiguation links
+  const getDisambiguationTWTitle = async (linkText) => {
+    if (!twZip) return null;
+
+    try {
+      // linkText like "kt/jesus" -> en_tw/bible/kt/jesus.md
+      const filePath = `en_tw/bible/${linkText}.md`;
+      const file = twZip.files[filePath];
+
+      if (!file) return null;
+
+      const content = await file.async('string');
+      const firstLine = content.split('\n')[0];
+
+      // Remove markdown header syntax
+      return firstLine.replace(/^#\s*/, '').trim();
+    } catch (err) {
+      console.warn(`Error reading TW article: ${err.message}`);
+      return null;
+    }
+  };
+
+  // Custom tooltip component for TW articles
+  const TWTooltip = ({ children, rcLink, disambiguationText, ...props }) => {
+    const [title, setTitle] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const fetchTitle = async () => {
+      if (title || isLoading) return; // Already loaded or loading
+
+      setIsLoading(true);
+      let articleTitle;
+
+      if (rcLink) {
+        articleTitle = await getTWArticleTitle(rcLink);
+      } else if (disambiguationText) {
+        articleTitle = await getDisambiguationTWTitle(disambiguationText);
+      }
+
+      setTitle(articleTitle || '');
+      setIsLoading(false);
+    };
+
+    return (
+      <Tooltip {...props} title={isLoading ? 'Loading...' : title || 'Article not found'} onOpen={fetchTitle} arrow>
+        {children}
+      </Tooltip>
+    );
+  };
+
+  // Function to open modal with full TW article content
+  const openTWArticleModal = async (rcLink) => {
+    if (!twZip) return;
+
+    try {
+      // Convert RC link to file path
+      const pathMatch = rcLink.match(/rc:\/\/\*\/tw\/dict\/(.+)/);
+      if (!pathMatch) return;
+
+      const filePath = `en_tw/${pathMatch[1]}.md`;
+      const file = twZip.files[filePath];
+
+      if (!file) return;
+
+      const markdownContent = await file.async('string');
+
+      // Get the title (first line without #)
+      const firstLine = markdownContent.split('\n')[0];
+      const title = firstLine.replace(/^#\s*/, '').trim();
+
+      // Convert markdown to HTML
+      const htmlContent = marked(markdownContent);
+
+      setModalTitle(title);
+      setModalContent(htmlContent);
+      setModalRcLink(rcLink);
+      setModalOpen(true);
+    } catch (err) {
+      console.warn(`Error loading TW article: ${err.message}`);
+    }
+  };
 
   if (!tableData || !tableData.headers.length) {
     return <div>No data to display</div>;
@@ -495,11 +625,9 @@ const TWLTable = ({
                             }}
                           />
                         ) : cell ? (
-                          <Tooltip title="View the Translation Words article for this word" arrow>
-                            <a
-                              href={convertRcLinkToUrl(cell, dcsHost)}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                          <TWTooltip rcLink={cell}>
+                            <span
+                              onClick={() => openTWArticleModal(cell)}
                               style={{
                                 color: '#1976d2',
                                 textDecoration: 'underline',
@@ -507,8 +635,8 @@ const TWLTable = ({
                               }}
                             >
                               {cell}
-                            </a>
-                          </Tooltip>
+                            </span>
+                          </TWTooltip>
                         ) : (
                           <Box sx={{ fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>{cell || ''}</Box>
                         )}
@@ -594,21 +722,23 @@ const TWLTable = ({
                               if (element.type === 'clickable') {
                                 return (
                                   <React.Fragment key={elemIndex}>
-                                    <span
-                                      onClick={async (e) => {
-                                        // Change cursor to wait on click
-                                        e.target.style.cursor = 'wait';
-                                        await new Promise((resolve) => setTimeout(resolve, 100));
-                                        element.onClick();
-                                      }}
-                                      style={{
-                                        color: '#1976d2',
-                                        textDecoration: 'underline',
-                                        cursor: 'pointer',
-                                      }}
-                                    >
-                                      {element.content}
-                                    </span>
+                                    <TWTooltip disambiguationText={element.content}>
+                                      <span
+                                        onClick={async (e) => {
+                                          // Change cursor to wait on click
+                                          e.target.style.cursor = 'wait';
+                                          await new Promise((resolve) => setTimeout(resolve, 100));
+                                          element.onClick();
+                                        }}
+                                        style={{
+                                          color: '#1976d2',
+                                          textDecoration: 'underline',
+                                          cursor: 'pointer',
+                                        }}
+                                      >
+                                        {element.content}
+                                      </span>
+                                    </TWTooltip>
                                   </React.Fragment>
                                 );
                               } else {
@@ -754,6 +884,104 @@ const TWLTable = ({
           sx={{ '& .MuiTablePagination-toolbar': { minHeight: '52px' } }}
         />
       </Box>
+
+      {/* TW Article Modal */}
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Box
+          sx={{
+            width: '80%',
+            maxWidth: '800px',
+            maxHeight: '80%',
+            bgcolor: 'background.paper',
+            boxShadow: 24,
+            borderRadius: 2,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {/* Modal Header */}
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              p: 2,
+              borderBottom: '1px solid #e0e0e0',
+            }}
+          >
+            <Typography variant="h6" component="h2" sx={{ fontWeight: 'bold', flex: 1 }}>
+              {modalTitle}
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Link href={convertRcLinkToUrl(modalRcLink, dcsHost)} target="_blank" rel="noopener noreferrer" sx={{ fontSize: '0.875rem', textDecoration: 'none' }}>
+                View on DCS
+              </Link>
+              <IconButton onClick={() => setModalOpen(false)} size="small">
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          </Box>
+
+          {/* Modal Content */}
+          <Box
+            sx={{
+              flex: 1,
+              p: 3,
+              overflow: 'auto',
+              '& h1, & h2, & h3, & h4, & h5, & h6': {
+                marginTop: '1em',
+                marginBottom: '0.5em',
+                fontWeight: 'bold',
+              },
+              '& h1': { fontSize: '2em' },
+              '& h2': { fontSize: '1.5em' },
+              '& h3': { fontSize: '1.17em' },
+              '& p': {
+                marginBottom: '1em',
+                lineHeight: 1.6,
+              },
+              '& ul, & ol': {
+                marginBottom: '1em',
+                paddingLeft: '2em',
+              },
+              '& li': {
+                marginBottom: '0.5em',
+              },
+              '& a': {
+                color: '#1976d2',
+                textDecoration: 'underline',
+              },
+              '& blockquote': {
+                borderLeft: '4px solid #e0e0e0',
+                paddingLeft: '1em',
+                margin: '1em 0',
+                fontStyle: 'italic',
+              },
+              '& code': {
+                backgroundColor: '#f5f5f5',
+                padding: '2px 4px',
+                borderRadius: '3px',
+                fontFamily: 'monospace',
+              },
+              '& pre': {
+                backgroundColor: '#f5f5f5',
+                padding: '1em',
+                borderRadius: '3px',
+                overflow: 'auto',
+              },
+            }}
+            dangerouslySetInnerHTML={{ __html: modalContent }}
+          />
+        </Box>
+      </Modal>
     </Box>
   );
 };

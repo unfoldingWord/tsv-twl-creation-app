@@ -5,49 +5,30 @@ import usfmjs from 'usfm-js';
  * @param {Object} wordObject - USFM word object
  * @return {Object} morphological data
  */
-const extractWordMorphology = (wordObject) => {
+function extractWordMorphology(wordObject) {
+  console.log('extractWordMorphology called with wordObject:', wordObject);
+  console.log('wordObject keys:', Object.keys(wordObject));
+
+  // Handle both direct properties, x- prefixed properties, and attributes object
+  const strong = (wordObject.attributes && (wordObject.attributes.strong || wordObject.attributes['x-strong'])) || wordObject.strong || wordObject['x-strong'];
+  const lemma = (wordObject.attributes && (wordObject.attributes.lemma || wordObject.attributes['x-lemma'])) || wordObject.lemma || wordObject['x-lemma'];
+  const morph = (wordObject.attributes && (wordObject.attributes.morph || wordObject.attributes['x-morph'])) || wordObject.morph || wordObject['x-morph'];
+
+  if (!strong && !lemma) {
+    console.log('No strong or lemma attribute found');
+    return null;
+  }
+
+  console.log('Extracted values - strong:', strong, 'lemma:', lemma, 'morph:', morph);
+
   const morphology = {
-    text: wordObject.text || '',
-    strongs: '',
-    lemma: '',
-    morphology: '',
-    gloss: ''
+    strongs: strong,
+    lemma,
+    morphology: morph
   };
-
-  if (wordObject.strong) {
-    morphology.strongs = wordObject.strong;
-  }
-
-  if (wordObject.lemma) {
-    morphology.lemma = wordObject.lemma;
-  }
-
-  if (wordObject.morph) {
-    morphology.morphology = wordObject.morph;
-  }
-
-  if (wordObject.gloss) {
-    morphology.gloss = wordObject.gloss;
-  }
-
-  // Also check for attributes in case they're stored differently
-  if (wordObject.attributes) {
-    if (wordObject.attributes.strong) {
-      morphology.strongs = wordObject.attributes.strong;
-    }
-    if (wordObject.attributes.lemma) {
-      morphology.lemma = wordObject.attributes.lemma;
-    }
-    if (wordObject.attributes.morph) {
-      morphology.morphology = wordObject.attributes.morph;
-    }
-    if (wordObject.attributes.gloss) {
-      morphology.gloss = wordObject.attributes.gloss;
-    }
-  }
-
+  console.log('Returning morphology:', morphology);
   return morphology;
-};
+}
 
 /**
  * dive down into milestone to extract words and text
@@ -252,13 +233,16 @@ export const removeAlignments = (usfmContent) => {
 
 /**
  * Extract verses from USFM content for a specific chapter or all chapters
+ * Enhanced to also extract lexicon data for tooltips
  * @param {string} usfmContent - The USFM content to parse
  * @param {number} [chapterNum] - Optional chapter number to extract (if not provided, extracts all chapters)
- * @return {Object} Object with chapter numbers as keys, each containing verse objects
+ * @return {Object} Object with chapter numbers as keys, each containing verse objects with text and lexicon data
  */
 export const extractVersesFromUSFM = (usfmContent, chapterNum) => {
   try {
     const usfmJSON = usfmjs.toJSON(usfmContent);
+    console.log('USFM JSON structure sample:', JSON.stringify(usfmJSON.chapters?.['1']?.['1']?.verseObjects?.slice(0, 3), null, 2));
+    console.log('Full USFM content sample:', usfmContent.substring(0, 500));
     const allChapters = {};
 
     if (usfmJSON.chapters) {
@@ -272,15 +256,45 @@ export const extractVersesFromUSFM = (usfmContent, chapterNum) => {
           if (verseNum !== 'front') {
             const verseData = chapterData[verseNum];
             if (verseData && verseData.verseObjects) {
-              // Extract text from verse objects, properly handling word and milestone objects
+              // Extract text and lexicon data from verse objects
               let verseText = '';
+              const lexiconData = [];
+
               verseData.verseObjects.forEach(obj => {
-                if (obj.text) {
+                if (obj.type === 'text' && !obj.tag) {
                   verseText += obj.text + ' ';
-                } else if (obj.type === 'word') {
+                } else if (obj.type === 'word' || (obj.type === 'text' && obj.tag === 'w')) {
                   verseText += obj.text + ' ';
+                  // Extract lexicon data from word object
+                  console.log('Processing Greek word object:', obj);
+                  const wordLexicon = extractWordMorphology(obj);
+                  console.log('Extracted lexicon for Greek word:', wordLexicon);
+                  if (wordLexicon.strongs || wordLexicon.lemma) {
+                    lexiconData.push({
+                      word: obj.text,
+                      ...wordLexicon
+                    });
+                  }
                 } else if (obj.type === 'milestone') {
                   verseText += parseMilestone(obj) + ' ';
+                  // Extract lexicon data from milestone attributes and associate with children
+                  if (obj.children) {
+                    obj.children.forEach(child => {
+                      if (child.type === 'word') {
+                        // Create lexicon entry using milestone attributes (handle both direct and x- prefixed)
+                        const milestoneLexicon = {
+                          word: child.text,
+                          strongs: (obj.attributes && (obj.attributes.strong || obj.attributes['x-strong'])) || obj.strong || obj['x-strong'] || '',
+                          lemma: (obj.attributes && (obj.attributes.lemma || obj.attributes['x-lemma'])) || obj.lemma || obj['x-lemma'] || '',
+                          morphology: (obj.attributes && (obj.attributes.morph || obj.attributes['x-morph'])) || obj.morph || obj['x-morph'] || '',
+                          gloss: (obj.attributes && (obj.attributes.gloss || obj.attributes['x-gloss'])) || obj.gloss || obj['x-gloss'] || ''
+                        };
+                        if (milestoneLexicon.strongs || milestoneLexicon.lemma) {
+                          lexiconData.push(milestoneLexicon);
+                        }
+                      }
+                    });
+                  }
                 } else if (obj.children) {
                   // Handle nested objects recursively
                   obj.children.forEach(child => {
@@ -288,13 +302,44 @@ export const extractVersesFromUSFM = (usfmContent, chapterNum) => {
                       verseText += child.text + ' ';
                     } else if (child.type === 'word') {
                       verseText += child.text + ' ';
+                      console.log('Processing nested Greek word object:', child);
+                      const wordLexicon = extractWordMorphology(child);
+                      console.log('Extracted lexicon for nested Greek word:', wordLexicon);
+                      if (wordLexicon.strongs || wordLexicon.lemma) {
+                        lexiconData.push({
+                          word: child.text,
+                          ...wordLexicon
+                        });
+                      }
                     } else if (child.type === 'milestone') {
                       verseText += parseMilestone(child) + ' ';
+                      // Extract lexicon data from nested milestone attributes and associate with children
+                      if (child.children) {
+                        child.children.forEach(grandChild => {
+                          if (grandChild.type === 'word') {
+                            // Create lexicon entry using nested milestone attributes (handle both direct and x- prefixed)
+                            const nestedMilestoneLexicon = {
+                              word: grandChild.text,
+                              strongs: (child.attributes && (child.attributes.strong || child.attributes['x-strong'])) || child.strong || child['x-strong'] || '',
+                              lemma: (child.attributes && (child.attributes.lemma || child.attributes['x-lemma'])) || child.lemma || child['x-lemma'] || '',
+                              morphology: (child.attributes && (child.attributes.morph || child.attributes['x-morph'])) || child.morph || child['x-morph'] || '',
+                              gloss: (child.attributes && (child.attributes.gloss || child.attributes['x-gloss'])) || child.gloss || child['x-gloss'] || ''
+                            };
+                            if (nestedMilestoneLexicon.strongs || nestedMilestoneLexicon.lemma) {
+                              lexiconData.push(nestedMilestoneLexicon);
+                            }
+                          }
+                        });
+                      }
                     }
                   });
                 }
               });
-              verses[parseInt(verseNum)] = verseText.trim();
+
+              verses[parseInt(verseNum)] = {
+                text: verseText.trim(),
+                lexicon: lexiconData
+              };
             }
           }
         });
@@ -312,15 +357,45 @@ export const extractVersesFromUSFM = (usfmContent, chapterNum) => {
           if (verseNum !== 'front') {
             const verseData = chapterData[verseNum];
             if (verseData && verseData.verseObjects) {
-              // Extract text from verse objects, properly handling word and milestone objects
+              // Extract text and lexicon data from verse objects
               let verseText = '';
+              const lexiconData = [];
+
               verseData.verseObjects.forEach(obj => {
-                if (obj.text) {
+                if (obj.type === 'text' && !obj.tag) {
                   verseText += obj.text + ' ';
-                } else if (obj.type === 'word') {
+                } else if (obj.type === 'word' || (obj.type === 'text' && obj.tag === 'w')) {
                   verseText += obj.text + ' ';
+                  // Extract lexicon data from word object
+                  console.log('Processing Greek word object:', obj);
+                  const wordLexicon = extractWordMorphology(obj);
+                  console.log('Extracted lexicon for Greek word:', wordLexicon);
+                  if (wordLexicon.strongs || wordLexicon.lemma) {
+                    lexiconData.push({
+                      word: obj.text,
+                      ...wordLexicon
+                    });
+                  }
                 } else if (obj.type === 'milestone') {
                   verseText += parseMilestone(obj) + ' ';
+                  // Extract lexicon data from milestone attributes and associate with children
+                  if (obj.children) {
+                    obj.children.forEach(child => {
+                      if (child.type === 'word') {
+                        // Create lexicon entry using milestone attributes (handle both direct and x- prefixed)
+                        const milestoneLexicon = {
+                          word: child.text,
+                          strongs: obj.strong || obj['x-strong'] || '',
+                          lemma: obj.lemma || obj['x-lemma'] || '',
+                          morphology: obj.morph || obj['x-morph'] || '',
+                          gloss: obj.gloss || obj['x-gloss'] || ''
+                        };
+                        if (milestoneLexicon.strongs || milestoneLexicon.lemma) {
+                          lexiconData.push(milestoneLexicon);
+                        }
+                      }
+                    });
+                  }
                 } else if (obj.children) {
                   // Handle nested objects recursively
                   obj.children.forEach(child => {
@@ -328,13 +403,44 @@ export const extractVersesFromUSFM = (usfmContent, chapterNum) => {
                       verseText += child.text + ' ';
                     } else if (child.type === 'word') {
                       verseText += child.text + ' ';
+                      console.log('Processing nested Greek word object:', child);
+                      const wordLexicon = extractWordMorphology(child);
+                      console.log('Extracted lexicon for nested Greek word:', wordLexicon);
+                      if (wordLexicon.strongs || wordLexicon.lemma) {
+                        lexiconData.push({
+                          word: child.text,
+                          ...wordLexicon
+                        });
+                      }
                     } else if (child.type === 'milestone') {
                       verseText += parseMilestone(child) + ' ';
+                      // Extract lexicon data from nested milestone attributes and associate with children
+                      if (child.children) {
+                        child.children.forEach(grandChild => {
+                          if (grandChild.type === 'word') {
+                            // Create lexicon entry using nested milestone attributes (handle both direct and x- prefixed)
+                            const nestedMilestoneLexicon = {
+                              word: grandChild.text,
+                              strongs: child.strong || child['x-strong'] || '',
+                              lemma: child.lemma || child['x-lemma'] || '',
+                              morphology: child.morph || child['x-morph'] || '',
+                              gloss: child.gloss || child['x-gloss'] || ''
+                            };
+                            if (nestedMilestoneLexicon.strongs || nestedMilestoneLexicon.lemma) {
+                              lexiconData.push(nestedMilestoneLexicon);
+                            }
+                          }
+                        });
+                      }
                     }
                   });
                 }
               });
-              verses[parseInt(verseNum)] = verseText.trim();
+
+              verses[parseInt(verseNum)] = {
+                text: verseText.trim(),
+                lexicon: lexiconData
+              };
             }
           }
         });
@@ -376,7 +482,7 @@ export const extractVersesWithMorphology = (usfmContent, chapterNum) => {
             verseData.verseObjects.forEach(obj => {
               if (obj.text) {
                 verseText += obj.text + ' ';
-              } else if (obj.type === 'word') {
+              } else if (obj.type === 'word' || (obj.type === 'text' && obj.tag === 'w')) {
                 verseText += obj.text + ' ';
                 wordMorphology.push(extractWordMorphology(obj));
               } else if (obj.type === 'milestone') {
