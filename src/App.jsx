@@ -48,6 +48,7 @@ import {
   ArrowDropDown as ArrowDropDownIcon,
   ManageAccounts as ManageIcon,
   CloudUpload as CloudUploadIcon,
+  GitHub as GitHubIcon,
 } from '@mui/icons-material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -58,6 +59,7 @@ import { useTableData } from './hooks/useTableData.js';
 import TWLTable from './components/TWLTable.jsx';
 import UnlinkedWordsManager from './components/UnlinkedWordsManager.jsx';
 import ScriptureViewer from './components/ScriptureViewer.jsx';
+import packageInfo from '../package.json';
 import { fetchTWLContent } from './services/apiService.js';
 import { mergeExistingTwls } from './services/twlService.js';
 import {
@@ -1046,12 +1048,43 @@ function App() {
         {/* Header */}
         <AppBar position="static" sx={{ bgcolor: '#38ADDF' }}>
           <Toolbar>
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              TSV TWL Creation App
-            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+              <Typography variant="h6" component="div">
+                TSV TWL Creation App
+              </Typography>
+              <Typography component="div" sx={{ fontSize: '0.875rem', lineHeight: 1, opacity: 0.95 }}>
+                (v{packageInfo.version})
+              </Typography>
+            </Box>
+
+            {/* GitHub README Link */}
+            <Button
+              component="a"
+              href="https://github.com/unfoldingWord/tsv-twl-creation-app/blob/main/README.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              startIcon={<GitHubIcon />}
+              sx={{
+                color: 'white',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+                borderRadius: '20px',
+                textTransform: 'none',
+                fontSize: '0.875rem',
+                px: 2,
+                py: 0.5,
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  borderColor: 'rgba(255, 255, 255, 0.5)',
+                },
+                '& .MuiButton-startIcon': {
+                  marginRight: '6px',
+                },
+              }}
+            >
+              View README on GitHub
+            </Button>
           </Toolbar>
         </AppBar>
-
         {/* Main Content */}
         <Box sx={{ px: '15px', py: 3 }}>
           {/* Book and Branch Selection Section */}
