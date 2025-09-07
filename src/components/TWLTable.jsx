@@ -414,10 +414,10 @@ const TWLTable = ({
   return (
     <Box>
       {/* Search and Filter Controls */}
-      <Box sx={{ mb: 0, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+      <Box sx={{ width: '600px', mb: 0, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
         <TextField
           size="small"
-          placeholder="Search Reference, ID, Tags, OrigWords, TWLink, GLQuote, Variant of, Disambiguation..."
+          placeholder="Search Reference, ID, OrigWords, TWLink, GLQuote etc."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           sx={{ minWidth: 400, flexGrow: 1 }}

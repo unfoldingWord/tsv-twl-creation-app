@@ -1262,118 +1262,88 @@ function App() {
                 </Typography>
 
                 {/* Controls */}
-                <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-                  <ToggleButtonGroup value={viewMode} exclusive onChange={handleViewModeChange} size="small">
-                    <ToggleButton value="table">Table View</ToggleButton>
-                    <ToggleButton value="raw">Raw Text</ToggleButton>
-                  </ToggleButtonGroup>
+                <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+                  {/* Left side buttons */}
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+                    <ToggleButtonGroup value={viewMode} exclusive onChange={handleViewModeChange} size="small">
+                      <ToggleButton value="table">Table View</ToggleButton>
+                      <ToggleButton value="raw">Raw Text</ToggleButton>
+                    </ToggleButtonGroup>
 
-                  {viewMode === 'raw' && (
-                    <Button
-                      onClick={handleSave}
-                      startIcon={<SaveIcon />}
-                      variant="contained"
-                      size="small"
-                      sx={{
-                        backgroundColor: '#2e7d32',
-                        textTransform: 'none',
-                        '&:hover': { backgroundColor: '#1b5e20' },
-                      }}
-                    >
-                      Save & Return to Table View
-                    </Button>
-                  )}
+                    {viewMode === 'raw' && (
+                      <Button
+                        onClick={handleSave}
+                        startIcon={<SaveIcon />}
+                        variant="contained"
+                        size="small"
+                        sx={{
+                          backgroundColor: '#2e7d32',
+                          textTransform: 'none',
+                          '&:hover': { backgroundColor: '#1b5e20' },
+                        }}
+                      >
+                        Save & Return to Table View
+                      </Button>
+                    )}
 
-                  {viewMode === 'table' && hasBackup && (
+                    {viewMode === 'table' && hasBackup && (
+                      <Button
+                        onClick={handleUndo}
+                        startIcon={<UndoIcon />}
+                        variant="outlined"
+                        size="small"
+                        sx={{
+                          color: '#1976d2',
+                          borderColor: '#1976d2',
+                          textTransform: 'none',
+                          '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
+                        }}
+                      >
+                        Undo Last Change
+                      </Button>
+                    )}
+
                     <Button
-                      onClick={handleUndo}
-                      startIcon={<UndoIcon />}
+                      onClick={handleUnlinkedWordsDialogOpen}
+                      startIcon={<ManageIcon />}
                       variant="outlined"
                       size="small"
                       sx={{
-                        color: '#1976d2',
-                        borderColor: '#1976d2',
+                        color: '#ff9800',
+                        borderColor: '#ff9800',
                         textTransform: 'none',
-                        '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
+                        '&:hover': {
+                          backgroundColor: 'rgba(255, 152, 0, 0.04)',
+                          borderColor: '#ff9800',
+                        },
                       }}
                     >
-                      Undo Last Change
+                      Manage Unlinked Words
                     </Button>
-                  )}
 
-                  <Button
-                    onClick={handleUnlinkedWordsDialogOpen}
-                    startIcon={<ManageIcon />}
-                    variant="outlined"
-                    size="small"
-                    sx={{
-                      color: '#ff9800',
-                      borderColor: '#ff9800',
-                      textTransform: 'none',
-                      '&:hover': {
-                        backgroundColor: 'rgba(255, 152, 0, 0.04)',
-                        borderColor: '#ff9800',
-                      },
-                    }}
-                  >
-                    Manage Unlinked Words
-                  </Button>
+                    <Button
+                      onClick={handleDownloadAllColumns}
+                      startIcon={<SaveIcon />}
+                      variant="contained"
+                      size="small"
+                      disabled={!twlContent || twlContent === ''}
+                      sx={{
+                        bgcolor: '#38ADDF',
+                        '&:hover': { bgcolor: '#2e8bb8' },
+                        textTransform: 'none',
+                      }}
+                    >
+                      Save TWLs to File
+                    </Button>
+                  </Box>
 
-                  <Button
-                    onClick={handleDownloadAllColumns}
-                    startIcon={<SaveIcon />}
-                    variant="contained"
-                    size="small"
-                    disabled={!twlContent || twlContent === ''}
-                    sx={{
-                      bgcolor: '#38ADDF',
-                      '&:hover': { bgcolor: '#2e8bb8' },
-                      textTransform: 'none',
-                    }}
-                  >
-                    Save TWLs to File
-                  </Button>
-
-                  {/* <Button
-                    onClick={handleCopyToClipboard}
-                    variant="outlined"
-                    size="small"
-                    disabled={!twlContent || twlContent === ''}
-                    sx={{
-                      color: '#1976d2',
-                      borderColor: '#1976d2',
-                      textTransform: 'none',
-                      '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
-                    }}
-                  >
-                    Copy to Clipboard
-                  </Button> */}
-
-                  {/* <Button
-                    component="a"
-                    href={`https://${dcsHost}/unfoldingWord/en_twl/_edit/${selectedBranch}/twl_${selectedBook?.value?.toUpperCase() || 'BOOK'}.tsv`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    variant="outlined"
-                    size="small"
-                    disabled={!selectedBook || selectedBook === null}
-                    sx={{
-                      color: '#1976d2',
-                      borderColor: '#1976d2',
-                      textTransform: 'none',
-                      '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
-                      textDecoration: 'none',
-                    }}
-                  >
-                    Edit twl_{selectedBook?.value?.toUpperCase() || 'BOOK'}.tsv on DCS
-                  </Button> */}
+                  {/* Right side - Commit to DCS button */}
                   <Button
                     variant="outlined"
                     startIcon={<CloudUploadIcon />}
                     onClick={handleCommitModalOpen}
                     disabled={!twlContent || !selectedBook}
                     sx={{
-                      ml: 2,
                       color: '#4caf50',
                       borderColor: '#4caf50',
                       textTransform: 'none',
