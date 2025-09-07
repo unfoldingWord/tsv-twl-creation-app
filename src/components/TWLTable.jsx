@@ -226,9 +226,10 @@ const TWLTable = ({
   const twLinkIndex = tableData.headers.findIndex((header) => header === 'TWLink');
   const glQuoteIndex = tableData.headers.findIndex((header) => header === 'GLQuote');
   const glOccurrenceIndex = tableData.headers.findIndex((header) => header === 'GLOccurrence');
+  const strongsIndex = tableData.headers.findIndex((header) => header === 'Strongs');
   const disambiguationIndex = tableData.headers.findIndex((header) => header === 'Disambiguation');
   const variantOfIndex = tableData.headers.findIndex((header) => header === 'Variant of');
-  const alreadyExistsIndex = tableData.headers.findIndex((header) => header === 'Merge Status');
+  const mergeStatusIndex = tableData.headers.findIndex((header) => header === 'Merge Status');
   const idIndex = tableData.headers.findIndex((header) => header === 'ID');
   const tagsIndex = tableData.headers.findIndex((header) => header === 'Tags');
 
@@ -254,6 +255,14 @@ const TWLTable = ({
         }
         // GLQuote (partial match)
         if (glQuoteIndex >= 0 && row[glQuoteIndex] && row[glQuoteIndex].toLowerCase().includes(searchLower)) {
+          return true;
+        }
+        // Strongs (exact match, case insensitive)
+        if (strongsIndex >= 0 && row[strongsIndex] && row[strongsIndex].toLowerCase() === searchLower) {
+          return true;
+        }
+        // Merge Status (exact match, case sensitive)
+        if (mergeStatusIndex >= 0 && row[mergeStatusIndex] && row[mergeStatusIndex] === searchTerm) {
           return true;
         }
         // Disambiguation (partial match)
@@ -302,8 +311,8 @@ const TWLTable = ({
 
     if (filters.mergeStatus !== '') {
       filtered = filtered.filter((row) => {
-        if (alreadyExistsIndex >= 0 && row[alreadyExistsIndex]) {
-          const status = row[alreadyExistsIndex].trim();
+        if (mergeStatusIndex >= 0 && row[mergeStatusIndex]) {
+          const status = row[mergeStatusIndex].trim();
           if (filters.mergeStatus === 'merged') {
             return status === 'MERGED';
           } else if (filters.mergeStatus === 'unmerged') {
@@ -315,7 +324,21 @@ const TWLTable = ({
     }
 
     return filtered;
-  }, [tableData.rows, searchTerm, filters, referenceIndex, origWordsIndex, twLinkIndex, glQuoteIndex, disambiguationIndex, variantOfIndex, alreadyExistsIndex, idIndex, tagsIndex]);
+  }, [
+    tableData.rows,
+    searchTerm,
+    filters,
+    referenceIndex,
+    origWordsIndex,
+    twLinkIndex,
+    glQuoteIndex,
+    strongsIndex,
+    disambiguationIndex,
+    variantOfIndex,
+    mergeStatusIndex,
+    idIndex,
+    tagsIndex,
+  ]);
 
   // Pagination logic
   const paginatedRows = useMemo(() => {
@@ -417,7 +440,7 @@ const TWLTable = ({
       <Box sx={{ width: '600px', mb: 0, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
         <TextField
           size="small"
-          placeholder="Search Reference, ID, OrigWords, TWLink, GLQuote etc."
+          placeholder="Search Reference, ID, OrigWords, TWLink, GLQuote, etc."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           sx={{ minWidth: 400, flexGrow: 1 }}
@@ -511,7 +534,7 @@ const TWLTable = ({
             />
 
             {/* Only show Merge Status filter if the column exists */}
-            {alreadyExistsIndex >= 0 && (
+            {mergeStatusIndex >= 0 && (
               <>
                 <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>
                   Merge Status:
