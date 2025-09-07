@@ -68,7 +68,19 @@ You have three ways to import existing TWL content for merging or direct editing
 3. **Edit TWLink**: Click the pencil icon (✏️) to modify the Translation Word link
    - Allows you to correct or change which Translation Word article this entry links to
 
-4. **Handle Disambiguations**:
+4. **View Scripture Context**: Click the book icon (📖) to open the Scripture Viewer
+   - Shows the aligned original Hebrew/Greek words with English translations
+   - Displays lexicon data with Strong's numbers, lemmas, and morphology
+   - Includes context verses (the target verse plus surrounding verses)
+   - Words with lexicon data are highlighted and clickable for detailed information
+
+5. **Translation Word Articles**:
+   - **Hover over TWLink or Disambiguation links**: See a tooltip with the article's title/terms
+   - **Click TWLink**: Opens the full Translation Word article in a modal popup
+   - **View on DCS**: From the article modal, click "View on DCS" to open the article on the DCS website
+
+6. **Handle Disambiguations**:
+   - **Hover over disambiguation links**: See the terms for each alternative word definition
    - **Click disambiguation links**: Switch between alternative word definitions
    - **Clear disambiguations**: Click the checkbox in the Disambiguation column to remove all disambiguation options
 
@@ -139,23 +151,32 @@ Here's the recommended step-by-step process:
 
 ### Phase 2: Review and Edit
 5. **Review the generated content** in table view
-6. **Use filters to focus on specific issues**:
+6. **Use the Scripture Viewer** to verify word alignments and context:
+   - Click the book icon (📖) for any row to see the biblical text with word alignments
+   - Verify that OrigWords and GLQuote match correctly in context
+   - Check lexicon data for accuracy of Strong's numbers and lemmas
+7. **Use filters to focus on specific issues**:
    - Start with "Unmerged" to review new/old content
    - Check "Invalid RC Links" for broken references
    - Review "Disambiguation" entries for multiple word options
-7. **Make necessary edits**:
+8. **Make necessary edits**:
    - Delete incorrect rows (single row deletion)
    - Unlink problematic words (affects all instances globally)
    - Edit TWLinks for better accuracy
-   - Select appropriate disambiguation options
+   - Select appropriate disambiguation options using hover tooltips for guidance
 
 ### Phase 3: Quality Control
-8. **Handle disambiguation options**:
+9. **Handle disambiguation options**:
+   - Hover over disambiguation links to preview terms for each option
    - Click through disambiguation links to select the best option
    - Clear disambiguations that aren't needed
-9. **Review variant relationships** using the variant filter
-10. **Check merge status** - ensure merged content looks correct
-11. **Use the search function** to find and fix specific issues
+10. **Verify Translation Word articles**:
+   - Hover over TWLinks to quickly check article terms
+   - Click TWLinks to read full articles and ensure they match the biblical context
+   - Use the Scripture Viewer to confirm word alignments make sense
+11. **Review variant relationships** using the variant filter
+12. **Check merge status** - ensure merged content looks correct
+13. **Use the search function** to find and fix specific issues
 
 ### Phase 4: Finalization
 12. **Save your work to file** for backup and collaboration
@@ -165,8 +186,48 @@ Here's the recommended step-by-step process:
 
 ## Additional Features
 
+### Scripture Viewer
+
+The Scripture Viewer provides advanced biblical text analysis and word alignment features:
+
+**Accessing the Scripture Viewer**:
+- Click the book icon (📖) in any table row to open the Scripture Viewer for that specific verse
+
+**Features**:
+- **Multi-language Display**: Shows original Hebrew/Greek text alongside English translations (ULT and UST)
+- **Word Alignment**: Visual highlighting shows how original language words align with English translations
+- **Lexicon Integration**: Click on any word to see detailed lexical information:
+  - Strong's numbers and lemmas
+  - Morphological analysis (grammatical information)
+  - English glosses and meanings
+- **Context Verses**: Displays the target verse plus several verses before and after for better understanding
+- **Interactive Highlighting**: Words matching your TWL entry are automatically highlighted
+- **Punctuation Handling**: Smart matching works even when words have punctuation (commas, periods, etc.)
+
+**How Word Alignment Works**:
+- Original language words (Hebrew/Greek) show lexical data when clicked
+- English words show alignment information linking back to the original language
+- Highlighting shows the specific words mentioned in your TWL entry
+- Supports complex quotes with multiple word parts separated by "&"
+
+### Translation Word Article Integration
+
+**Hover Tooltips**:
+- **TWLink Column**: Hover over any Translation Word link to see the article's main terms
+- **Disambiguation Links**: Hover over disambiguation options to preview their specific terms
+- Tooltips are loaded dynamically from the Translation Word articles
+
+**Article Viewer**:
+- **Click TWLink**: Opens the full Translation Word article in an elegant modal popup
+- **Formatted Content**: Articles are displayed with proper markdown formatting (headings, lists, links, etc.)
+- **Scrollable Content**: Long articles have scrollbars for easy reading
+- **DCS Integration**: Click "View on DCS" to open the article on the Door43 Content Service website
+- **Easy Navigation**: Close with the X button to return to your work
+
+**Other Features**:
+
 - **Reference Links**: Click any Bible reference to open Translation Notes in a new window
-- **Hover Tooltips**: Long text content shows full details on hover
+- **Long Text Tooltips**: Hover over long content to see full details in a tooltip
 - **Column Visibility**: Control which columns are displayed
 - **Automatic Validation**: The app checks TWL format and shows validation errors
 - **Browser Compatibility**: Works in modern web browsers with localStorage support
