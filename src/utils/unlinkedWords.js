@@ -9,15 +9,61 @@ const UNLINKED_WORDS_KEY = 'twl-unlinked-words';
 /**
  * Normalize Hebrew text for comparison by removing cantillation marks and extra spaces
  */
-const normalizeHebrewText = (text) => {
+export const normalizeHebrewText = (text) => {
   if (!text) return '';
 
   // Remove Hebrew cantillation marks (Unicode range 0591-05BD)
   // and other Hebrew diacritical marks (05BF-05C7)
+  // Also remove maqqef (־) and other punctuation that might interfere with matching
   return text
-    .replace(/[\u0591-\u05BD\u05BF-\u05C7]/g, '')
+    .replace(/[\u0591-\u05BD\u05BF-\u05C7\u05BE\u05C0\u05C3\u05C6]/g, '')
+    .replace(/[\u2000-\u200F\u2028-\u202F]/g, ' ') // Replace various Unicode spaces with regular space
     .replace(/\s+/g, ' ')
     .trim();
+};
+
+export const tokenizeQuote = (quote, isOrigLang = true) => {
+  const cleanQuote = cleanQuoteString(quote);
+  const quotesArray = cleanQuote
+    .split(/\s?&\s?/)
+    .flatMap((partialQuote) => tokenizer(partialQuote, isOrigLang).concat("&"))
+    .slice(0, -1);
+  return quotesArray;
+};
+
+export const normalize = (str = "", isOrigLang = false) => {
+  const tokens = tokenizeQuote(str, isOrigLang).join(" ").trim();
+  return tokens;
+};
+
+export const cleanQuoteString = (quote) => {
+  return (
+    quote
+      // replace smart closing quotation mark with correct one
+      .replace(/”/gi, '"')
+      // remove space before smart opening quotation mark
+      .replace(/“ /gi, '"')
+      // replace smart opening quotation mark with correct one
+      .replace(/“/gi, '"')
+      // add space after
+      .replace(/,"/gi, ', "')
+      // remove space after opening quotation mark
+      .replace(/, " /gi, ', "')
+      // remove spaces before question marks
+      .replace(/\s+([?])/gi, "$1")
+      // remove double spaces
+      .replace(/ {2}/gi, " ")
+      // remove spaces before commas
+      .replace(/ , /gi, ", ")
+      // remove spaces before periods
+      .replace(/ ."/gi, '."')
+      // remove space before apostrophes
+      .replace(/ ’./gi, "’.")
+      .trim()
+      .replace(/ *\.{3} */g, ` ${QUOTE_ELLIPSIS} `)
+      .replace(/ *… */gi, ` ${QUOTE_ELLIPSIS} `)
+      .replaceAll(/\\n|\\r/g, "")
+  );
 };
 
 /**

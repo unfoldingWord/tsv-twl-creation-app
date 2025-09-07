@@ -29,14 +29,25 @@ import {
   FormControlLabel,
   Checkbox,
 } from '@mui/material';
-import { Delete as DeleteIcon, Search as SearchIcon, Clear as ClearIcon, FilterList as FilterIcon, Edit as EditIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, Search as SearchIcon, Clear as ClearIcon, FilterList as FilterIcon, Edit as EditIcon, MenuBook as BookIcon } from '@mui/icons-material';
 import { RxLinkBreak2 as UnlinkIcon } from 'react-icons/rx';
 import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConverters.js';
 import { truncateContextAroundWord } from '../utils/tsvUtils.js';
 import { parseDisambiguationOptions, renderDisambiguationText } from '../utils/disambiguationUtils.js';
 import JSZip from 'jszip';
 
-const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambiguationClick, onReferenceClick, onClearDisambiguation, onEditTWLink, dcsHost }) => {
+const TWLTable = ({
+  tableData,
+  selectedBook,
+  onDeleteRow,
+  onUnlinkRow,
+  onDisambiguationClick,
+  onReferenceClick,
+  onClearDisambiguation,
+  onEditTWLink,
+  onShowScripture,
+  dcsHost,
+}) => {
   // State for pagination, search, and filtering
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
@@ -81,8 +92,10 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
   // Find column indices for search and filtering
   const referenceIndex = tableData.headers.findIndex((header) => header === 'Reference');
   const origWordsIndex = tableData.headers.findIndex((header) => header === 'OrigWords');
+  const occurrenceIndex = tableData.headers.findIndex((header) => header === 'Occurrence');
   const twLinkIndex = tableData.headers.findIndex((header) => header === 'TWLink');
   const glQuoteIndex = tableData.headers.findIndex((header) => header === 'GLQuote');
+  const glOccurrenceIndex = tableData.headers.findIndex((header) => header === 'GLOccurrence');
   const disambiguationIndex = tableData.headers.findIndex((header) => header === 'Disambiguation');
   const variantOfIndex = tableData.headers.findIndex((header) => header === 'Variant of');
   const alreadyExistsIndex = tableData.headers.findIndex((header) => header === 'Merge Status');
@@ -643,7 +656,43 @@ const TWLTable = ({ tableData, selectedBook, onDeleteRow, onUnlinkRow, onDisambi
                   return <TableCell key={cellIndex}>{cell}</TableCell>;
                 })}
 
-                <TableCell sx={{ minWidth: '150px !important', textAlign: 'center' }}>
+                <TableCell sx={{ minWidth: '180px !important', textAlign: 'center' }}>
+                  <Tooltip title="Show Scripture Context">
+                    <IconButton
+                      onClick={() => {
+                        if (onShowScripture) {
+                          const reference = row[referenceIndex] || '';
+                          const origWords = row[origWordsIndex] || '';
+                          const glQuote = row[glQuoteIndex] || origWords; // Use GLQuote if available, fallback to OrigWords
+                          const occurrence = row[occurrenceIndex] || '1';
+                          const glOccurrence = row[glOccurrenceIndex] || occurrence; // Use GLOccurrence if available, fallback to Occurrence
+
+                          // Parse reference to get chapter and verse
+                          const refMatch = reference.match(/(\d+):(\d+)/);
+                          const chapter = refMatch ? parseInt(refMatch[1]) : 1;
+                          const verse = refMatch ? parseInt(refMatch[2]) : 1;
+
+                          onShowScripture({
+                            bookId: selectedBook?.value || 'mat',
+                            chapter,
+                            verse,
+                            quote: glQuote, // Use GLQuote for advanced highlighting
+                            origWords, // Keep original words for reference
+                            occurrence: glQuote !== origWords ? parseInt(glOccurrence) || 1 : parseInt(occurrence) || 1, // Use GLOccurrence for GLQuote, Occurrence for OrigWords
+                          });
+                        }
+                      }}
+                      size="small"
+                      disabled={editingTWLink !== null}
+                      sx={{
+                        color: '#1976d2',
+                        '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
+                        mr: 1,
+                      }}
+                    >
+                      <BookIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title="Edit TWLink">
                     <IconButton
                       onClick={() => handleEditTWLinkStart(rowIndex, row[twLinkIndex])}

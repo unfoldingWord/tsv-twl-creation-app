@@ -52,12 +52,12 @@ import {
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
-// Internal imports
 import { BibleBookData } from '@common/books';
 import { useAppState } from './hooks/useAppState.js';
 import { useTableData } from './hooks/useTableData.js';
 import TWLTable from './components/TWLTable.jsx';
 import UnlinkedWordsManager from './components/UnlinkedWordsManager.jsx';
+import ScriptureViewer from './components/ScriptureViewer.jsx';
 import { fetchTWLContent } from './services/apiService.js';
 import { mergeExistingTwls } from './services/twlService.js';
 import {
@@ -138,10 +138,14 @@ function App() {
   // Track original content when entering raw text mode
   const [rawTextOriginalContent, setRawTextOriginalContent] = useState(null);
 
+  // Scripture viewing state
+  const [scriptureContext, setScriptureContext] = useState(null);
+
   // Clear backup when book changes
   useEffect(() => {
     setBackupTwlContent(null);
     setRawTextOriginalContent(null);
+    setScriptureContext(null); // Clear scripture context when book changes
   }, [selectedBook?.value]); // Only trigger on book value change, not branch
 
   // Download menu state
@@ -607,6 +611,14 @@ function App() {
     }
     setViewMode('table');
     setRawTextOriginalContent(null);
+  };
+
+  /**
+   * Handle showing scripture context for a specific row
+   */
+  const handleShowScripture = (scriptureData) => {
+    console.log('handleShowScripture called with:', scriptureData);
+    setScriptureContext(scriptureData);
   };
 
   // Prepare book options for the autocomplete
@@ -1341,18 +1353,44 @@ function App() {
 
                 {/* Content Display */}
                 <Box sx={{ mt: 2 }}>
+                  {/* Temporary Test Button for ScriptureViewer */}
+                  {!scriptureContext && (
+                    <Button
+                      variant="outlined"
+                      onClick={() =>
+                        handleShowScripture({
+                          bookId: 'mat',
+                          chapter: 1,
+                          verse: 1,
+                          quote: 'logos',
+                          occurrence: 1,
+                        })
+                      }
+                      sx={{ mb: 2 }}
+                    >
+                      🧪 Test ScriptureViewer
+                    </Button>
+                  )}
+
                   {viewMode === 'table' ? (
-                    <TWLTable
-                      tableData={tableData}
-                      selectedBook={selectedBook}
-                      onDeleteRow={handleDeleteRow}
-                      onUnlinkRow={handleUnlinkRow}
-                      onDisambiguationClick={handleDisambiguationClick}
-                      onClearDisambiguation={handleClearDisambiguation}
-                      onEditTWLink={handleEditTWLink}
-                      onReferenceClick={handleReferenceClick}
-                      dcsHost={dcsHost}
-                    />
+                    <>
+                      {/* Scripture Context Viewer */}
+                      {scriptureContext && <ScriptureViewer dcsHost={dcsHost} scriptureContext={scriptureContext} onClose={() => setScriptureContext(null)} />}
+
+                      {/* TWL Table */}
+                      <TWLTable
+                        tableData={tableData}
+                        selectedBook={selectedBook}
+                        onDeleteRow={handleDeleteRow}
+                        onUnlinkRow={handleUnlinkRow}
+                        onDisambiguationClick={handleDisambiguationClick}
+                        onClearDisambiguation={handleClearDisambiguation}
+                        onEditTWLink={handleEditTWLink}
+                        onReferenceClick={handleReferenceClick}
+                        onShowScripture={handleShowScripture}
+                        dcsHost={dcsHost}
+                      />
+                    </>
                   ) : (
                     <>
                       {hasBackup && (

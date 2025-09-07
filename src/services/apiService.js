@@ -32,18 +32,41 @@ const decodeBase64Content = (base64Content) => {
 };
 
 /**
- * Fetch USFM content for a specific book and branch
+ * Fetch USFM content for a specific book, translation, and branch
  */
-export const fetchUSFMContent = async (bookValue, dcsHost = 'git.door43.org') => {
+export const fetchUSFMContent = async (bookValue, translation = 'ult', dcsHost = 'git.door43.org', dcsToken) => {
   const bookData = BibleBookData[bookValue];
+  if (!bookData) {
+    throw new Error(`Book data not found for: ${bookValue}`);
+  }
+
   const usfmFileName = bookData.usfm;
 
+  const headers = {};
+  if (dcsToken) {
+    headers['Authorization'] = `token ${dcsToken}`;
+  }
+
+  // Determine repository based on translation
+  let repo;
+  if (translation === 'ult') {
+    repo = 'en_ult';
+  } else if (translation === 'ust') {
+    repo = 'en_ust';
+  } else if (translation === 'original') {
+    // For original languages, use appropriate repo based on testament
+    repo = bookData.testament === 'new' ? 'el-x-koine_ugnt' : 'hbo_uhb';
+  } else {
+    repo = `en_${translation}`;
+  }
+
   const response = await fetch(
-    `https://${dcsHost}/api/v1/repos/unfoldingWord/en_ult/contents/${usfmFileName}.usfm?ref=master`
+    `https://${dcsHost}/api/v1/repos/unfoldingWord/${repo}/contents/${usfmFileName}.usfm?ref=master`,
+    { headers }
   );
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch USFM content: ${response.statusText}`);
+    throw new Error(`Failed to fetch ${translation} USFM content for ${bookValue}: ${response.statusText}`);
   }
 
   const data = await response.json();
