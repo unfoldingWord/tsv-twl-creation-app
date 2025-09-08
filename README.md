@@ -123,7 +123,6 @@ The search feature allows you to find content across multiple columns:
 - ⚠️ **Global Impact**: Affects all users of the app - use carefully!
 
 **✏️ 3. Edit TWLink**
-- **Click the pencil icon (✏️)** in the Actions column to modify the Translation Word link
 - **Click anywhere in the TWLink column** (except on the link text itself) to quickly enter edit mode
 - **Click directly on the link text** to open the Translation Word article modal
 - Allows you to correct or change which Translation Word article this entry links to

@@ -36,7 +36,6 @@ import {
   Search as SearchIcon,
   Clear as ClearIcon,
   FilterList as FilterIcon,
-  Edit as EditIcon,
   MenuBook as BookIcon,
   Close as CloseIcon,
   KeyboardArrowUp as ArrowUpIcon,
@@ -983,20 +982,7 @@ const TWLTable = ({
                       <BookIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Edit TWLink">
-                    <IconButton
-                      onClick={() => handleEditTWLinkStart(rowIndex, row[twLinkIndex])}
-                      size="small"
-                      disabled={editingTWLink !== null}
-                      sx={{
-                        color: 'blue',
-                        '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.04)' },
-                        mr: 0.5,
-                      }}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                  {/* Edit icon removed — click the TWLink cell to edit */}
                   <Tooltip title="Delete just this one TWL">
                     <IconButton
                       onClick={() => onDeleteRow(getActualRowIndex(rowIndex))}
