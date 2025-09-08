@@ -541,6 +541,37 @@ function App() {
   const handleEditTWLink = (rowIndex, newTWLink) => {
     if (!twlContent) return;
 
+    // Handle special case for row movement
+    if (rowIndex === -1 && typeof newTWLink === 'string' && newTWLink.startsWith('{')) {
+      try {
+        const moveData = JSON.parse(newTWLink);
+        if (moveData.action === 'moveRow' && moveData.newRows) {
+          // Create backup before making changes
+          createBackup();
+
+          // Get headers from current twlContent
+          const lines = twlContent.split('\n');
+          if (lines.length === 0) return;
+          const headers = lines[0].split('\t');
+
+          // Convert rows back to TSV format
+          const headerLine = headers.join('\t');
+          const dataLines = moveData.newRows.map((row) => row.join('\t'));
+          const newContent = [headerLine, ...dataLines].join('\n');
+
+          // Normalize column count to ensure consistency
+          const normalizedContent = normalizeTsvColumnCount(newContent);
+          setTwlContent(normalizedContent);
+          // Save to localStorage after row movement
+          saveTwlContent(normalizedContent);
+          return;
+        }
+      } catch (error) {
+        console.error('Error parsing move row data:', error);
+        return;
+      }
+    }
+
     // Create backup before making changes
     createBackup();
 

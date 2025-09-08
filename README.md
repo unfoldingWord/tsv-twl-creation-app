@@ -138,6 +138,17 @@ The search feature allows you to find content across multiple columns:
 - **🖱️ Click TWLink**: Opens the full Translation Word article in a modal popup
 - **☁️ View on DCS**: From the article modal, click "View on DCS" to open the article on the DCS website
 
+**⬆️ 6. Move Row Up/Down**
+- **⬆️ Up Arrow**: Move row up within the same reference (verse)
+- **⬇️ Down Arrow**: Move row down within the same reference (verse)
+- **📍 Same Reference Only**: Can only move rows within the same Bible reference
+- **🚫 Hidden States**:
+  - Arrow buttons are completely hidden when search/filter is active
+  - Up arrow disabled if it's the first row of a reference
+  - Down arrow disabled if it's the last row of a reference
+- **↶ Undo Support**: Moving rows enables the Undo button to reverse the action
+- **📄 Cross-Page Movement**: If moving causes a row to move to another page, the table updates accordingly
+
 **❓ 6. Handle Disambiguations**
 - **👆 Hover over disambiguation links**: See the terms for each alternative word definition
 - **🖱️ Click disambiguation links**: Switch between alternative word definitions

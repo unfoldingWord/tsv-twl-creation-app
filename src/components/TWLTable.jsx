@@ -39,6 +39,8 @@ import {
   Edit as EditIcon,
   MenuBook as BookIcon,
   Close as CloseIcon,
+  KeyboardArrowUp as ArrowUpIcon,
+  KeyboardArrowDown as ArrowDownIcon,
 } from '@mui/icons-material';
 import { RxLinkBreak2 as UnlinkIcon } from 'react-icons/rx';
 import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConverters.js';
@@ -420,6 +422,82 @@ const TWLTable = ({
     }
   };
 
+  // Move row functionality
+  const canMoveRowUp = (paginatedRowIndex) => {
+    // Can't move if search/filter is applied
+    if (searchTerm.trim() || Object.values(filters).some((v) => v !== null && v !== '')) {
+      return false;
+    }
+
+    const actualRowIndex = getActualRowIndex(paginatedRowIndex);
+    if (actualRowIndex <= 0) return false;
+
+    // Find the first row of the current reference group
+    const currentReference = tableData.rows[actualRowIndex][referenceIndex];
+    let firstRowOfGroup = actualRowIndex;
+    while (firstRowOfGroup > 0 && tableData.rows[firstRowOfGroup - 1][referenceIndex] === currentReference) {
+      firstRowOfGroup--;
+    }
+
+    // Can move up only if not the first row of its reference group
+    return actualRowIndex > firstRowOfGroup;
+  };
+
+  const canMoveRowDown = (paginatedRowIndex) => {
+    // Can't move if search/filter is applied
+    if (searchTerm.trim() || Object.values(filters).some((v) => v !== null && v !== '')) {
+      return false;
+    }
+
+    const actualRowIndex = getActualRowIndex(paginatedRowIndex);
+    if (actualRowIndex >= tableData.rows.length - 1) return false;
+
+    // Find the last row of the current reference group
+    const currentReference = tableData.rows[actualRowIndex][referenceIndex];
+    let lastRowOfGroup = actualRowIndex;
+    while (lastRowOfGroup < tableData.rows.length - 1 && tableData.rows[lastRowOfGroup + 1][referenceIndex] === currentReference) {
+      lastRowOfGroup++;
+    }
+
+    // Can move down only if not the last row of its reference group
+    return actualRowIndex < lastRowOfGroup;
+  };
+
+  const handleMoveRowUp = (paginatedRowIndex) => {
+    if (!canMoveRowUp(paginatedRowIndex)) return;
+
+    const actualRowIndex = getActualRowIndex(paginatedRowIndex);
+
+    // Create new row order
+    const rows = [...tableData.rows];
+    const temp = rows[actualRowIndex];
+    rows[actualRowIndex] = rows[actualRowIndex - 1];
+    rows[actualRowIndex - 1] = temp;
+
+    // Use onEditTWLink with special parameters to signal row movement
+    // The parent component should handle this special case
+    if (onEditTWLink) {
+      onEditTWLink(-1, JSON.stringify({ action: 'moveRow', direction: 'up', fromIndex: actualRowIndex, newRows: rows }));
+    }
+  };
+
+  const handleMoveRowDown = (paginatedRowIndex) => {
+    if (!canMoveRowDown(paginatedRowIndex)) return;
+
+    const actualRowIndex = getActualRowIndex(paginatedRowIndex);
+
+    // Create new row order
+    const rows = [...tableData.rows];
+    const temp = rows[actualRowIndex];
+    rows[actualRowIndex] = rows[actualRowIndex + 1];
+    rows[actualRowIndex + 1] = temp;
+
+    // Use onEditTWLink with special parameters to signal row movement
+    if (onEditTWLink) {
+      onEditTWLink(-1, JSON.stringify({ action: 'moveRow', direction: 'down', fromIndex: actualRowIndex, newRows: rows }));
+    }
+  };
+
   // Calculate actual row indices for callbacks (accounting for pagination and filtering)
   const getActualRowIndex = (paginatedRowIndex) => {
     const filteredRowIndex = page * rowsPerPage + paginatedRowIndex;
@@ -437,10 +515,10 @@ const TWLTable = ({
   return (
     <Box>
       {/* Search and Filter Controls */}
-      <Box sx={{ width: '600px', mb: 0, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+      <Box sx={{ width: '750px', mb: 0, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
         <TextField
           size="small"
-          placeholder="Search Reference, ID, OrigWords, TWLink, GLQuote, etc."
+          placeholder="Search Reference, ID, OrigWords, TWLink, GLQuote, Strongs, etc."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           sx={{ minWidth: 400, flexGrow: 1 }}
@@ -614,7 +692,7 @@ const TWLTable = ({
                   {header}
                 </TableCell>
               ))}
-              {<TableCell sx={{ minWidth: '150px !important', textAlign: 'center', fontWeight: 'normal', color: 'grey' }}>Actions</TableCell>}
+              {<TableCell sx={{ minWidth: '240px !important', textAlign: 'center', fontWeight: 'normal', color: 'grey' }}>Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -809,7 +887,50 @@ const TWLTable = ({
                   return <TableCell key={cellIndex}>{cell}</TableCell>;
                 })}
 
-                <TableCell sx={{ minWidth: '180px !important', textAlign: 'center' }}>
+                <TableCell sx={{ minWidth: '240px !important', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                  {/* Move row up/down buttons - only show when not searching/filtering */}
+                  {!(searchTerm.trim() || Object.values(filters).some((v) => v !== null && v !== '')) && (
+                    <>
+                      <Tooltip title={canMoveRowUp(rowIndex) ? 'Move row up (within same reference)' : 'Cannot move up (first row of reference)'}>
+                        <span>
+                          <IconButton
+                            onClick={() => handleMoveRowUp(rowIndex)}
+                            size="small"
+                            disabled={!canMoveRowUp(rowIndex) || editingTWLink !== null}
+                            sx={{
+                              color: canMoveRowUp(rowIndex) ? '#2e7d32' : '#bdbdbd',
+                              '&:hover': canMoveRowUp(rowIndex) ? { backgroundColor: 'rgba(46, 125, 50, 0.04)' } : {},
+                              '&.Mui-disabled': {
+                                color: '#bdbdbd',
+                              },
+                              mr: 0.5,
+                            }}
+                          >
+                            <ArrowUpIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title={canMoveRowDown(rowIndex) ? 'Move row down (within same reference)' : 'Cannot move down (last row of reference)'}>
+                        <span>
+                          <IconButton
+                            onClick={() => handleMoveRowDown(rowIndex)}
+                            size="small"
+                            disabled={!canMoveRowDown(rowIndex) || editingTWLink !== null}
+                            sx={{
+                              color: canMoveRowDown(rowIndex) ? '#2e7d32' : '#bdbdbd',
+                              '&:hover': canMoveRowDown(rowIndex) ? { backgroundColor: 'rgba(46, 125, 50, 0.04)' } : {},
+                              '&.Mui-disabled': {
+                                color: '#bdbdbd',
+                              },
+                              mr: 0.5,
+                            }}
+                          >
+                            <ArrowDownIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </>
+                  )}
                   <Tooltip title="Show Scripture Context">
                     <IconButton
                       onClick={() => {
@@ -840,7 +961,7 @@ const TWLTable = ({
                       sx={{
                         color: '#1976d2',
                         '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
-                        mr: 1,
+                        mr: 0.5,
                       }}
                     >
                       <BookIcon fontSize="small" />
@@ -854,7 +975,7 @@ const TWLTable = ({
                       sx={{
                         color: 'blue',
                         '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.04)' },
-                        mr: 1,
+                        mr: 0.5,
                       }}
                     >
                       <EditIcon fontSize="small" />
@@ -868,13 +989,13 @@ const TWLTable = ({
                       sx={{
                         color: '#d32f2f',
                         '&:hover': { backgroundColor: 'rgba(211, 47, 47, 0.04)' },
-                        mr: 1,
+                        mr: 0.5,
                       }}
                     >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Unlink this Word: This `OrigWords` will never be linked to this `TW` article again, removing this one and others in this list with the same `OrigWords` and `TWLink`. Can be managed via the Unlinked Words Manager above.">
+                  <Tooltip title="Unlink this Word">
                     <IconButton
                       onClick={() => onUnlinkRow(getActualRowIndex(rowIndex))}
                       size="small"
