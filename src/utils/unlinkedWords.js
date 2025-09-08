@@ -159,7 +159,7 @@ export const isWordUnlinked = (origWords, twLink) => {
 
   return unlinkedWords.some(
     item => !item.removed && // Only consider non-removed items
-      normalizeHebrewText(item.origWords) === normalizedOrigWords &&
+      normalizedOrigWords.includes(normalizeHebrewText(item.origWords)) &&
       item.twLink.trim() === normalizedTWLink
   );
 };
