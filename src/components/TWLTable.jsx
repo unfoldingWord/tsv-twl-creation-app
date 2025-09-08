@@ -708,7 +708,20 @@ const TWLTable = ({
                   // TWLink column with external links and edit functionality
                   if (isTWLinkColumn) {
                     return (
-                      <TableCell key={cellIndex} sx={cell && !twRcLinks.includes(cell) ? { backgroundColor: '#ffe5e5' } : undefined}>
+                      <TableCell
+                        key={cellIndex}
+                        sx={{
+                          ...(cell && !twRcLinks.includes(cell) ? { backgroundColor: '#ffe5e5' } : {}),
+                          '&:hover':
+                            editingTWLink === rowIndex
+                              ? {}
+                              : {
+                                  backgroundColor: 'rgba(25, 118, 210, 0.04)',
+                                },
+                        }}
+                        style={{ cursor: editingTWLink === rowIndex ? 'default' : 'cell' }}
+                        onClick={editingTWLink === rowIndex ? undefined : () => handleEditTWLinkStart(rowIndex, cell || '')}
+                      >
                         {editingTWLink === rowIndex ? (
                           <TextField
                             value={editValue}
@@ -728,7 +741,10 @@ const TWLTable = ({
                         ) : cell ? (
                           <TWTooltip rcLink={cell}>
                             <span
-                              onClick={() => openTWArticleModal(cell)}
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent cell click from triggering
+                                openTWArticleModal(cell);
+                              }}
                               style={{
                                 color: '#1976d2',
                                 textDecoration: 'underline',
