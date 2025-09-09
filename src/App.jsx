@@ -492,6 +492,34 @@ function App() {
   };
 
   /**
+   * Handle row duplication
+   */
+  const handleDuplicateRow = (rowIndex, duplicatedRow) => {
+    if (!twlContent) return;
+
+    // Create backup before making changes
+    createBackup();
+
+    // Parse current content
+    const lines = twlContent.split('\n');
+    if (lines.length === 0) return;
+
+    const dataRowIndex = rowIndex + 1; // Add 1 to skip header row
+    if (dataRowIndex >= lines.length) return;
+
+    // Insert the duplicated row right after the original row
+    const newLines = [...lines];
+    newLines.splice(dataRowIndex + 1, 0, duplicatedRow.join('\t'));
+
+    let newContent = newLines.join('\n');
+    // Normalize column count to ensure consistency
+    newContent = normalizeTsvColumnCount(newContent);
+    setTwlContent(newContent);
+    // Save to localStorage after duplication
+    saveTwlContent(newContent);
+  };
+
+  /**
    * Handle disambiguation option switching
    */
   const handleDisambiguationClick = (rowIndex, cellIndex, newDisambiguation, newTWLink) => {
@@ -1429,6 +1457,7 @@ function App() {
                         selectedBook={selectedBook}
                         onDeleteRow={handleDeleteRow}
                         onUnlinkRow={handleUnlinkRow}
+                        onDuplicateRow={handleDuplicateRow}
                         onDisambiguationClick={handleDisambiguationClick}
                         onClearDisambiguation={handleClearDisambiguation}
                         onEditTWLink={handleEditTWLink}

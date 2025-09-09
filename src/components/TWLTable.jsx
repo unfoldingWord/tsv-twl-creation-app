@@ -41,6 +41,7 @@ import {
   KeyboardArrowUp as ArrowUpIcon,
   KeyboardArrowDown as ArrowDownIcon,
   Restore as RestoreIcon,
+  ContentCopy as CopyIcon,
 } from '@mui/icons-material';
 import { RxLinkBreak2 as UnlinkIcon } from 'react-icons/rx';
 import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConverters.js';
@@ -54,6 +55,7 @@ const TWLTable = ({
   selectedBook,
   onDeleteRow,
   onUnlinkRow,
+  onDuplicateRow,
   onDisambiguationClick,
   onReferenceClick,
   onClearDisambiguation,
@@ -595,6 +597,58 @@ const TWLTable = ({
 
     return actualIndex;
   };
+
+  // Generate a unique ID for a new row
+  const generateUniqueId = () => {
+    const existingIds = new Set();
+
+    // Collect all existing IDs from tableData
+    if (idIndex >= 0) {
+      tableData.rows.forEach((row) => {
+        const id = row[idIndex];
+        if (id && id.trim()) {
+          existingIds.add(id.trim());
+        }
+      });
+    }
+
+    // Generate ID: first char a-z, rest a-z0-9
+    const firstChars = 'abcdefghijklmnopqrstuvwxyz';
+    const restChars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+
+    // Start with 4 character IDs, expand if needed
+    for (let length = 4; length <= 8; length++) {
+      for (let attempt = 0; attempt < 1000; attempt++) {
+        let id = firstChars[Math.floor(Math.random() * firstChars.length)];
+        for (let i = 1; i < length; i++) {
+          id += restChars[Math.floor(Math.random() * restChars.length)];
+        }
+
+        if (!existingIds.has(id)) {
+          return id;
+        }
+      }
+    }
+
+    // Fallback - should rarely happen
+    return 'x' + Date.now().toString(36);
+  };
+
+  // Handle row duplication
+  const handleDuplicateRow = (rowIndex) => {
+    if (onDuplicateRow) {
+      const row = tableData.rows[rowIndex];
+      const duplicatedRow = [...row]; // Create a copy of the row
+
+      // Generate a unique ID and update the ID column if it exists
+      if (idIndex >= 0) {
+        duplicatedRow[idIndex] = generateUniqueId();
+      }
+
+      onDuplicateRow(rowIndex, duplicatedRow);
+    }
+  };
+
   return (
     <Box>
       {/* Search and Filter Controls */}
@@ -789,7 +843,7 @@ const TWLTable = ({
                   {header}
                 </TableCell>
               ))}
-              {<TableCell sx={{ minWidth: '240px !important', textAlign: 'center', fontWeight: 'normal', color: 'grey' }}>Actions</TableCell>}
+              {<TableCell sx={{ minWidth: '280px !important', textAlign: 'center', fontWeight: 'normal', color: 'grey' }}>Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -1049,7 +1103,7 @@ const TWLTable = ({
                     return <TableCell key={cellIndex}>{cell}</TableCell>;
                   })}
 
-                  <TableCell sx={{ minWidth: '240px !important', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                  <TableCell sx={{ minWidth: '280px !important', textAlign: 'center', whiteSpace: 'nowrap' }}>
                     {/* Move row up/down buttons - only show when not searching/filtering */}
                     {!(searchTerm.trim() || Object.values(filters).some((v) => v !== null && v !== '')) && (
                       <>
@@ -1142,6 +1196,20 @@ const TWLTable = ({
                         }}
                       >
                         {isDeleted ? <RestoreIcon fontSize="small" /> : <DeleteIcon fontSize="small" />}
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Duplicate this row">
+                      <IconButton
+                        onClick={() => handleDuplicateRow(getActualRowIndex(rowIndex))}
+                        size="small"
+                        disabled={editingTWLink !== null}
+                        sx={{
+                          color: '#2196f3',
+                          '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.04)' },
+                          mr: 0.5,
+                        }}
+                      >
+                        <CopyIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Unlink this Word">
