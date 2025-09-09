@@ -41,17 +41,19 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
   const generatedOrigWordsIndex = generatedHeaders.findIndex((h) => h === 'OrigWords');
   const generatedOccurrenceIndex = generatedHeaders.findIndex((h) => h === 'Occurrence');
   const generatedTWLinkIndex = generatedHeaders.findIndex((h) => h === 'TWLink');
+  const generatedGLQuoteIndex = generatedHeaders.findIndex((h) => h === 'GLQuote');
 
   console.log('Generated headers:', generatedHeaders);
-  console.log('Generated indices:', { origWords: generatedOrigWordsIndex, occurrence: generatedOccurrenceIndex, twlink: generatedTWLinkIndex });
+  console.log('Generated indices:', { origWords: generatedOrigWordsIndex, occurrence: generatedOccurrenceIndex, glquote: generatedGLQuoteIndex });
 
   // Find column indices for existing content (may be different if structure differs)
   const existingOrigWordsIndex = existing.headers ? existing.headers.findIndex((h) => h === 'OrigWords') : generatedOrigWordsIndex;
   const existingOccurrenceIndex = existing.headers ? existing.headers.findIndex((h) => h === 'Occurrence') : generatedOccurrenceIndex;
   const existingTWLinkIndex = existing.headers ? existing.headers.findIndex((h) => h === 'TWLink') : generatedTWLinkIndex;
+  const existingGLQuoteIndex = existing.headers ? existing.headers.findIndex((h) => h === 'GLQuote') : generatedGLQuoteIndex;
 
   console.log('Existing headers:', existing.headers);
-  console.log('Existing indices:', { origWords: existingOrigWordsIndex, occurrence: existingOccurrenceIndex, twlink: existingTWLinkIndex });
+  console.log('Existing indices:', { origWords: existingOrigWordsIndex, occurrence: existingOccurrenceIndex, glquote: existingGLQuoteIndex });
 
   // Helper function to normalize Hebrew text
   const normalizeHebrew = (text) => {
@@ -60,18 +62,18 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
   };
 
   // Helper function to create a unique key for row matching
-  const createRowKey = (row, origWordsIndex, occurrenceIndex, twlinkIndex) => {
+  const createRowKey = (row, origWordsIndex, occurrenceIndex, glQuoteIndex) => {
     const reference = row[0] || '';
     const origWords = normalizeHebrew(row[origWordsIndex] || '');
     const occurrence = row[occurrenceIndex] || '';
-    const twlink = row[twlinkIndex] || '';
-    return `${reference}-${origWords}-${occurrence}-${twlink}`;
+    const glQuote = row[glQuoteIndex] || '';
+    return `${reference}-${origWords}-${occurrence}-${glQuote}`;
   };
 
   // Create a map of existing rows keyed by their unique identifier
   const existingRowsMap = new Map();
   existingRows.forEach((row, index) => {
-    const key = createRowKey(row, existingOrigWordsIndex, existingOccurrenceIndex, existingTWLinkIndex);
+    const key = createRowKey(row, existingOrigWordsIndex, existingOccurrenceIndex, existingGLQuoteIndex);
     existingRowsMap.set(key, { row, originalIndex: index });
   });
 
@@ -81,7 +83,7 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
   const processedRows = [];
 
   generatedRows.forEach((generatedRow, index) => {
-    const key = createRowKey(generatedRow, generatedOrigWordsIndex, generatedOccurrenceIndex, generatedTWLinkIndex);
+    const key = createRowKey(generatedRow, generatedOrigWordsIndex, generatedOccurrenceIndex, generatedGLQuoteIndex);
 
     if (existingRowsMap.has(key)) {
       // Match found - update generated row with existing data
