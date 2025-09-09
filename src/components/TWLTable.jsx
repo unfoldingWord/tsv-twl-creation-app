@@ -652,7 +652,7 @@ const TWLTable = ({
   return (
     <Box>
       {/* Search and Filter Controls */}
-      <Box sx={{ width: '750px', mb: 0, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+      <Box sx={{ width: '850px', mb: 0, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
         <TextField
           size="small"
           placeholder="Search Reference, ID, OrigWords, TWLink, GLQuote, Strongs, etc."
