@@ -40,6 +40,7 @@ import {
   Close as CloseIcon,
   KeyboardArrowUp as ArrowUpIcon,
   KeyboardArrowDown as ArrowDownIcon,
+  Restore as RestoreIcon,
 } from '@mui/icons-material';
 import { RxLinkBreak2 as UnlinkIcon } from 'react-icons/rx';
 import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConverters.js';
@@ -64,9 +65,10 @@ const TWLTable = ({
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showDeletedRows, setShowDeletedRows] = useState(false);
   const [filterAnchorEl, setFilterAnchorEl] = useState(null);
   const [filters, setFilters] = useState({
-    hasDisambiguation: null, // null = show all, true = has disambiguation, false = no disambiguation
+    hasDisambiguation: null, // null = show all, 'need' = needs disambiguation, 'done' = been disambiguated, false = no disambiguation
     mergeStatus: '', // '' = show all, 'merged' = show MERGED rows, 'unmerged' = show OLD/NEW rows
     isInvalidRCLink: null, // null = show all, true = is invalid
     isVariant: null, // null = show all, true = has variant info, false = no variant info
@@ -238,13 +240,24 @@ const TWLTable = ({
   const filteredRows = useMemo(() => {
     let filtered = tableData.rows;
 
+    // First filter out deleted rows unless showDeletedRows is checked
+    if (!showDeletedRows) {
+      filtered = filtered.filter((row) => {
+        const reference = referenceIndex >= 0 ? row[referenceIndex] : '';
+        return !reference.startsWith('DELETED ');
+      });
+    }
+
     // Apply search filter
     if (searchTerm.trim()) {
       const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter((row) => {
-        // Reference (exact match)
-        if (referenceIndex >= 0 && row[referenceIndex] && row[referenceIndex].toLowerCase() === searchLower) {
-          return true;
+        // Reference (exact match) - search against the display version (without DELETED prefix)
+        if (referenceIndex >= 0 && row[referenceIndex]) {
+          const displayReference = row[referenceIndex].startsWith('DELETED ') ? row[referenceIndex].substring(8) : row[referenceIndex];
+          if (displayReference.toLowerCase() === searchLower) {
+            return true;
+          }
         }
         // OrigWords (partial match)
         if (origWordsIndex >= 0 && row[origWordsIndex] && row[origWordsIndex].toLowerCase().includes(searchLower)) {
@@ -266,9 +279,12 @@ const TWLTable = ({
         if (mergeStatusIndex >= 0 && row[mergeStatusIndex] && row[mergeStatusIndex] === searchTerm) {
           return true;
         }
-        // Disambiguation (partial match)
-        if (disambiguationIndex >= 0 && row[disambiguationIndex] && row[disambiguationIndex].toLowerCase().includes(searchLower)) {
-          return true;
+        // Disambiguation (partial match) - search against display version (without DONE prefix)
+        if (disambiguationIndex >= 0 && row[disambiguationIndex]) {
+          const displayDisambiguation = row[disambiguationIndex].startsWith('DONE ') ? row[disambiguationIndex].substring(5) : row[disambiguationIndex];
+          if (displayDisambiguation.toLowerCase().includes(searchLower)) {
+            return true;
+          }
         }
         // Variant of (partial match)
         if (variantOfIndex >= 0 && row[variantOfIndex] && row[variantOfIndex].toLowerCase().includes(searchLower)) {
@@ -289,8 +305,19 @@ const TWLTable = ({
     // Apply filters
     if (filters.hasDisambiguation !== null) {
       filtered = filtered.filter((row) => {
-        const hasDisambiguation = disambiguationIndex >= 0 && row[disambiguationIndex] && row[disambiguationIndex].trim() !== '';
-        return filters.hasDisambiguation ? hasDisambiguation : !hasDisambiguation;
+        const disambiguationValue = disambiguationIndex >= 0 ? row[disambiguationIndex] : '';
+        const hasAnyDisambiguation = disambiguationValue && disambiguationValue.trim() !== '';
+        const isDone = disambiguationValue.startsWith('DONE ');
+        const needsDisambiguation = hasAnyDisambiguation && !isDone;
+
+        if (filters.hasDisambiguation === 'need') {
+          return needsDisambiguation;
+        } else if (filters.hasDisambiguation === 'done') {
+          return isDone;
+        } else if (filters.hasDisambiguation === false) {
+          return !hasAnyDisambiguation;
+        }
+        return true;
       });
     }
 
@@ -328,6 +355,7 @@ const TWLTable = ({
   }, [
     tableData.rows,
     searchTerm,
+    showDeletedRows,
     filters,
     referenceIndex,
     origWordsIndex,
@@ -339,6 +367,7 @@ const TWLTable = ({
     mergeStatusIndex,
     idIndex,
     tagsIndex,
+    twRcLinks,
   ]);
 
   // Pagination logic
@@ -386,11 +415,66 @@ const TWLTable = ({
   const clearFilters = () => {
     setFilters({
       hasDisambiguation: null,
-      mergeStatus: null,
+      mergeStatus: '',
       isInvalidRCLink: null,
       isVariant: null,
     });
     setPage(0);
+  };
+
+  // Helper functions for soft delete and disambiguation
+  const isRowDeleted = (row) => {
+    const reference = referenceIndex >= 0 ? row[referenceIndex] : '';
+    return reference.startsWith('DELETED ');
+  };
+
+  const getDisplayReference = (row) => {
+    const reference = referenceIndex >= 0 ? row[referenceIndex] : '';
+    return reference.startsWith('DELETED ') ? reference.substring(8) : reference;
+  };
+
+  const isDisambiguationDone = (row) => {
+    const disambiguation = disambiguationIndex >= 0 ? row[disambiguationIndex] : '';
+    return disambiguation.startsWith('DONE ');
+  };
+
+  const getDisplayDisambiguation = (row) => {
+    const disambiguation = disambiguationIndex >= 0 ? row[disambiguationIndex] : '';
+    return disambiguation.startsWith('DONE ') ? disambiguation.substring(5) : disambiguation;
+  };
+
+  const handleSoftDelete = (rowIndex) => {
+    if (onDeleteRow) {
+      const row = tableData.rows[rowIndex];
+      const currentReference = referenceIndex >= 0 ? row[referenceIndex] : '';
+
+      if (currentReference.startsWith('DELETED ')) {
+        // Restore row - remove DELETED prefix
+        const restoredReference = currentReference.substring(8);
+        onDeleteRow(rowIndex, restoredReference, 'restore');
+      } else {
+        // Soft delete - add DELETED prefix
+        const deletedReference = `DELETED ${currentReference}`;
+        onDeleteRow(rowIndex, deletedReference, 'delete');
+      }
+    }
+  };
+
+  const handleDisambiguationToggle = (rowIndex, cellIndex) => {
+    if (onClearDisambiguation) {
+      const row = tableData.rows[rowIndex];
+      const currentDisambiguation = disambiguationIndex >= 0 ? row[disambiguationIndex] : '';
+
+      if (currentDisambiguation.startsWith('DONE ')) {
+        // Unmark as done - remove DONE prefix
+        const undoneDisambiguation = currentDisambiguation.substring(5);
+        onClearDisambiguation(rowIndex, cellIndex, undoneDisambiguation, 'undone');
+      } else {
+        // Mark as done - add DONE prefix
+        const doneDisambiguation = `DONE ${currentDisambiguation}`;
+        onClearDisambiguation(rowIndex, cellIndex, doneDisambiguation, 'done');
+      }
+    }
   };
 
   // TWLink editing handlers
@@ -549,6 +633,7 @@ const TWLTable = ({
         >
           Filter
         </Button>
+        <FormControlLabel control={<Checkbox checked={showDeletedRows} onChange={(e) => setShowDeletedRows(e.target.checked)} size="small" />} label="Show Deleted Rows" />
       </Box>
 
       {/* Filter Menu */}
@@ -559,19 +644,37 @@ const TWLTable = ({
           </Typography>
 
           <FormGroup>
+            <FormControlLabel
+              control={<Checkbox checked={filters.isInvalidRCLink === true} onChange={(e) => handleFilterChange('isInvalidRCLink', e.target.checked ? true : null)} />}
+              label="Invalid TWLink"
+            />
+
             {/* Disambiguation filter checkboxes */}
-            <FormControlLabel
-              control={<Checkbox checked={filters.hasDisambiguation === true} onChange={(e) => handleFilterChange('hasDisambiguation', e.target.checked ? true : null)} />}
-              label="Has Disambiguation"
-            />
-            <FormControlLabel
-              control={<Checkbox checked={filters.hasDisambiguation === false} onChange={(e) => handleFilterChange('hasDisambiguation', e.target.checked ? false : null)} />}
-              label="No Disambiguation"
-            />
+            <>
+              <Typography variant="body2" sx={{ mt: 2, mb: 1, fontWeight: 'bold' }}>
+                Disambiguation:
+              </Typography>
+              <FormControlLabel
+                control={<Checkbox checked={filters.hasDisambiguation === 'need'} onChange={(e) => handleFilterChange('hasDisambiguation', e.target.checked ? 'need' : null)} />}
+                label="Need Disambiguation"
+              />
+              <FormControlLabel
+                control={<Checkbox checked={filters.hasDisambiguation === 'done'} onChange={(e) => handleFilterChange('hasDisambiguation', e.target.checked ? 'done' : null)} />}
+                label="Been Disambiguated"
+              />
+              <FormControlLabel
+                control={<Checkbox checked={filters.hasDisambiguation === false} onChange={(e) => handleFilterChange('hasDisambiguation', e.target.checked ? false : null)} />}
+                label="No Disambiguation"
+              />
+            </>
 
             {/* Variant filter checkboxes (only show if column exists) */}
             {variantOfIndex >= 0 && (
               <>
+                <Typography variant="body2" sx={{ mt: 2, mb: 1, fontWeight: 'bold' }}>
+                  Variants:
+                </Typography>
+
                 <FormControlLabel
                   control={
                     <Checkbox
@@ -605,15 +708,10 @@ const TWLTable = ({
               </>
             )}
 
-            <FormControlLabel
-              control={<Checkbox checked={filters.isInvalidRCLink === true} onChange={(e) => handleFilterChange('isInvalidRCLink', e.target.checked ? true : null)} />}
-              label="Invalid TWLink"
-            />
-
             {/* Only show Merge Status filter if the column exists */}
             {mergeStatusIndex >= 0 && (
               <>
-                <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>
+                <Typography variant="body2" sx={{ mt: 2, mb: 1, fontWeight: 'bold' }}>
                   Merge Status:
                 </Typography>
                 <FormControlLabel
@@ -695,130 +793,239 @@ const TWLTable = ({
             </TableRow>
           </TableHead>
           <TableBody>
-            {paginatedRows.map((row, rowIndex) => (
-              <TableRow key={`${page}-${rowIndex}`} hover>
-                {row.map((cell, cellIndex) => {
-                  const headerName = tableData.headers[cellIndex];
-                  const isTWLinkColumn = headerName === 'TWLink';
-                  const isReferenceColumn = headerName === 'Reference';
-                  const isContextColumn = headerName === 'Context';
-                  const isDisambiguationColumn = headerName === 'Disambiguation';
+            {paginatedRows.map((row, rowIndex) => {
+              const isDeleted = isRowDeleted(row);
+              const rowStyles = isDeleted
+                ? {
+                    backgroundColor: '#f5f5f5',
+                    color: '#d32f2f',
+                    '& .MuiTableCell-root': {
+                      color: '#d32f2f',
+                    },
+                  }
+                : {};
 
-                  // TWLink column with external links and edit functionality
-                  if (isTWLinkColumn) {
-                    return (
-                      <TableCell
-                        key={cellIndex}
-                        sx={{
-                          ...(cell && !twRcLinks.includes(cell) ? { backgroundColor: '#ffe5e5' } : {}),
-                          '&:hover':
-                            editingTWLink === rowIndex
-                              ? {}
-                              : {
-                                  backgroundColor: 'rgba(25, 118, 210, 0.04)',
+              return (
+                <TableRow key={`${page}-${rowIndex}`} hover sx={rowStyles}>
+                  {row.map((cell, cellIndex) => {
+                    const headerName = tableData.headers[cellIndex];
+                    const isTWLinkColumn = headerName === 'TWLink';
+                    const isReferenceColumn = headerName === 'Reference';
+                    const isContextColumn = headerName === 'Context';
+                    const isDisambiguationColumn = headerName === 'Disambiguation';
+
+                    // TWLink column with external links and edit functionality
+                    if (isTWLinkColumn) {
+                      return (
+                        <TableCell
+                          key={cellIndex}
+                          sx={{
+                            ...(cell && !twRcLinks.includes(cell) ? { backgroundColor: '#ffe5e5' } : {}),
+                            '&:hover':
+                              editingTWLink === rowIndex
+                                ? {}
+                                : {
+                                    backgroundColor: 'rgba(25, 118, 210, 0.04)',
+                                  },
+                          }}
+                          style={{ cursor: editingTWLink === rowIndex ? 'default' : 'cell' }}
+                          onClick={editingTWLink === rowIndex ? undefined : () => handleEditTWLinkStart(rowIndex, cell || '')}
+                        >
+                          {editingTWLink === rowIndex ? (
+                            <TextField
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onBlur={() => handleEditTWLinkSave(rowIndex)}
+                              onKeyDown={(e) => handleKeyPress(e, rowIndex)}
+                              size="small"
+                              fullWidth
+                              autoFocus
+                              variant="outlined"
+                              sx={{
+                                '& .MuiOutlinedInput-root': {
+                                  fontSize: '0.875rem',
                                 },
-                        }}
-                        style={{ cursor: editingTWLink === rowIndex ? 'default' : 'cell' }}
-                        onClick={editingTWLink === rowIndex ? undefined : () => handleEditTWLinkStart(rowIndex, cell || '')}
-                      >
-                        {editingTWLink === rowIndex ? (
-                          <TextField
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => handleEditTWLinkSave(rowIndex)}
-                            onKeyDown={(e) => handleKeyPress(e, rowIndex)}
-                            size="small"
-                            fullWidth
-                            autoFocus
-                            variant="outlined"
+                              }}
+                            />
+                          ) : cell ? (
+                            <TWTooltip rcLink={cell}>
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation(); // Prevent cell click from triggering
+                                  openTWArticleModal(cell);
+                                }}
+                                style={{
+                                  color: '#1976d2',
+                                  textDecoration: 'underline',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {cell}
+                              </span>
+                            </TWTooltip>
+                          ) : (
+                            <Box sx={{ fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>{cell || ''}</Box>
+                          )}
+                        </TableCell>
+                      );
+                    }
+
+                    // Reference column with TN links
+                    if (isReferenceColumn && cell && selectedBook) {
+                      const displayCell = getDisplayReference(row);
+                      const url = convertReferenceToTnUrl(displayCell, selectedBook);
+                      if (url) {
+                        return (
+                          <TableCell key={cellIndex}>
+                            <Tooltip title="View the TNs for this verse" arrow>
+                              <a
+                                href={url}
+                                onClick={(e) => onReferenceClick && onReferenceClick(displayCell, e)}
+                                style={{
+                                  color: '#1976d2',
+                                  textDecoration: 'underline',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {displayCell}
+                              </a>
+                            </Tooltip>
+                          </TableCell>
+                        );
+                      } else {
+                        return <TableCell key={cellIndex}>{displayCell}</TableCell>;
+                      }
+                    }
+
+                    // Handle Reference column without TN links
+                    if (isReferenceColumn) {
+                      const displayCell = getDisplayReference(row);
+                      return <TableCell key={cellIndex}>{displayCell}</TableCell>;
+                    }
+
+                    // Context column with truncation and tooltip
+                    if (isContextColumn && cell) {
+                      const truncatedText = truncateContextAroundWord(cell);
+                      const shouldTruncate = truncatedText !== cell;
+
+                      if (shouldTruncate) {
+                        return (
+                          <TableCell key={cellIndex}>
+                            <Tooltip title={cell} arrow>
+                              <span style={{ cursor: 'help' }}>{truncatedText}</span>
+                            </Tooltip>
+                          </TableCell>
+                        );
+                      }
+                    }
+
+                    // Disambiguation column with clickable options (only when actions are enabled)
+                    if (isDisambiguationColumn && cell) {
+                      const isDone = isDisambiguationDone(row);
+                      const displayCell = getDisplayDisambiguation(row);
+
+                      // Find the TWLink column value for this row
+                      const twLinkIndex = tableData.headers.findIndex((h) => h === 'TWLink');
+                      const currentTWLink = twLinkIndex !== -1 ? row[twLinkIndex] : '';
+
+                      const parseResult = parseDisambiguationOptions(displayCell, currentTWLink, (newDisambiguation, newTWLink) => {
+                        onDisambiguationClick(getActualRowIndex(rowIndex), cellIndex, newDisambiguation, newTWLink);
+                      });
+
+                      if (parseResult.clickableOptions.length > 0) {
+                        const elements = renderDisambiguationText(displayCell, parseResult);
+
+                        return (
+                          <TableCell
+                            key={cellIndex}
                             sx={{
-                              '& .MuiOutlinedInput-root': {
-                                fontSize: '0.875rem',
-                              },
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                              padding: '4px 8px',
+                              color: isDone ? '#999' : 'inherit',
                             }}
-                          />
-                        ) : cell ? (
-                          <TWTooltip rcLink={cell}>
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation(); // Prevent cell click from triggering
-                                openTWArticleModal(cell);
-                              }}
-                              style={{
-                                color: '#1976d2',
-                                textDecoration: 'underline',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              {cell}
-                            </span>
-                          </TWTooltip>
-                        ) : (
-                          <Box sx={{ fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>{cell || ''}</Box>
-                        )}
-                      </TableCell>
-                    );
-                  }
-
-                  // Reference column with TN links
-                  if (isReferenceColumn && cell && selectedBook) {
-                    const url = convertReferenceToTnUrl(cell, selectedBook);
-                    if (url) {
-                      return (
-                        <TableCell key={cellIndex}>
-                          <Tooltip title="View the TNs for this verse" arrow>
-                            <a
-                              href={url}
-                              onClick={(e) => onReferenceClick && onReferenceClick(cell, e)}
-                              style={{
-                                color: '#1976d2',
-                                textDecoration: 'underline',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              {cell}
-                            </a>
-                          </Tooltip>
-                        </TableCell>
-                      );
+                          >
+                            {onClearDisambiguation && (
+                              <Tooltip title={isDone ? 'Unmark as done (restore choices)' : 'Mark as done (will disable these choices)'} arrow>
+                                <Checkbox
+                                  checked={isDone}
+                                  size="small"
+                                  sx={{
+                                    padding: '2px',
+                                    '& .MuiSvgIcon-root': {
+                                      fontSize: '0.8rem',
+                                    },
+                                  }}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    handleDisambiguationToggle(getActualRowIndex(rowIndex), cellIndex);
+                                  }}
+                                />
+                              </Tooltip>
+                            )}
+                            <Box sx={{ flex: 1, color: isDone ? '#999' : 'inherit' }}>
+                              {elements.map((element, elemIndex) => {
+                                if (element.type === 'clickable') {
+                                  return (
+                                    <React.Fragment key={elemIndex}>
+                                      <TWTooltip disambiguationText={element.content}>
+                                        <span
+                                          onClick={
+                                            isDone
+                                              ? undefined
+                                              : async (e) => {
+                                                  // Change cursor to wait on click
+                                                  e.target.style.cursor = 'wait';
+                                                  await new Promise((resolve) => setTimeout(resolve, 100));
+                                                  element.onClick();
+                                                }
+                                          }
+                                          style={{
+                                            color: isDone ? '#bbb' : '#1976d2',
+                                            textDecoration: isDone ? 'none' : 'underline',
+                                            cursor: isDone ? 'default' : 'pointer',
+                                          }}
+                                        >
+                                          {element.content}
+                                        </span>
+                                      </TWTooltip>
+                                    </React.Fragment>
+                                  );
+                                } else {
+                                  return (
+                                    <React.Fragment key={elemIndex}>
+                                      <span style={element.isSelected ? { fontWeight: 'bold', color: '#333' } : {}}>{element.content}</span>
+                                    </React.Fragment>
+                                  );
+                                }
+                              })}
+                            </Box>
+                          </TableCell>
+                        );
+                      }
                     }
-                  }
 
-                  // Context column with truncation and tooltip
-                  if (isContextColumn && cell) {
-                    const truncatedText = truncateContextAroundWord(cell);
-                    const shouldTruncate = truncatedText !== cell;
-
-                    if (shouldTruncate) {
-                      return (
-                        <TableCell key={cellIndex}>
-                          <Tooltip title={cell} arrow>
-                            <span style={{ cursor: 'help' }}>{truncatedText}</span>
-                          </Tooltip>
-                        </TableCell>
-                      );
-                    }
-                  }
-
-                  // Disambiguation column with clickable options (only when actions are enabled)
-                  if (isDisambiguationColumn && cell) {
-                    // Find the TWLink column value for this row
-                    const twLinkIndex = tableData.headers.findIndex((h) => h === 'TWLink');
-                    const currentTWLink = twLinkIndex !== -1 ? row[twLinkIndex] : '';
-
-                    const parseResult = parseDisambiguationOptions(cell, currentTWLink, (newDisambiguation, newTWLink) => {
-                      onDisambiguationClick(getActualRowIndex(rowIndex), cellIndex, newDisambiguation, newTWLink);
-                    });
-
-                    if (parseResult.clickableOptions.length > 0) {
-                      const elements = renderDisambiguationText(cell, parseResult);
+                    // Handle disambiguation column with content but no clickable options
+                    if (isDisambiguationColumn && cell) {
+                      const isDone = isDisambiguationDone(row);
+                      const displayCell = getDisplayDisambiguation(row);
 
                       return (
-                        <TableCell key={cellIndex} sx={{ display: 'flex', alignItems: 'center', gap: 1, padding: '4px 8px' }}>
+                        <TableCell
+                          key={cellIndex}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            padding: '4px 8px',
+                            color: isDone ? '#999' : 'inherit',
+                          }}
+                        >
                           {onClearDisambiguation && (
-                            <Tooltip title="Mark as done (will remove these choices)" arrow>
+                            <Tooltip title={isDone ? 'Unmark as done' : 'Mark as done'} arrow>
                               <Checkbox
-                                checked={false}
+                                checked={isDone}
                                 size="small"
                                 sx={{
                                   padding: '2px',
@@ -828,191 +1035,132 @@ const TWLTable = ({
                                 }}
                                 onClick={(e) => {
                                   e.preventDefault();
-                                  onClearDisambiguation(getActualRowIndex(rowIndex), cellIndex);
+                                  handleDisambiguationToggle(getActualRowIndex(rowIndex), cellIndex);
                                 }}
                               />
                             </Tooltip>
                           )}
-                          <Box sx={{ flex: 1 }}>
-                            {elements.map((element, elemIndex) => {
-                              if (element.type === 'clickable') {
-                                return (
-                                  <React.Fragment key={elemIndex}>
-                                    <TWTooltip disambiguationText={element.content}>
-                                      <span
-                                        onClick={async (e) => {
-                                          // Change cursor to wait on click
-                                          e.target.style.cursor = 'wait';
-                                          await new Promise((resolve) => setTimeout(resolve, 100));
-                                          element.onClick();
-                                        }}
-                                        style={{
-                                          color: '#1976d2',
-                                          textDecoration: 'underline',
-                                          cursor: 'pointer',
-                                        }}
-                                      >
-                                        {element.content}
-                                      </span>
-                                    </TWTooltip>
-                                  </React.Fragment>
-                                );
-                              } else {
-                                return (
-                                  <React.Fragment key={elemIndex}>
-                                    <span style={element.isSelected ? { fontWeight: 'bold', color: '#333' } : {}}>{element.content}</span>
-                                  </React.Fragment>
-                                );
-                              }
-                            })}
-                          </Box>
+                          <Box sx={{ flex: 1, color: isDone ? '#999' : 'inherit' }}>{displayCell}</Box>
                         </TableCell>
                       );
                     }
-                  }
 
-                  // Handle disambiguation column with content but no clickable options
-                  if (isDisambiguationColumn && cell) {
-                    return (
-                      <TableCell key={cellIndex} sx={{ display: 'flex', alignItems: 'center', gap: 1, padding: '4px 8px' }}>
-                        {onClearDisambiguation && (
-                          <Tooltip title="Mark as done (clears disambiguation)" arrow>
-                            <Checkbox
-                              checked={false}
+                    // Default cell rendering
+                    return <TableCell key={cellIndex}>{cell}</TableCell>;
+                  })}
+
+                  <TableCell sx={{ minWidth: '240px !important', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    {/* Move row up/down buttons - only show when not searching/filtering */}
+                    {!(searchTerm.trim() || Object.values(filters).some((v) => v !== null && v !== '')) && (
+                      <>
+                        <Tooltip title={canMoveRowUp(rowIndex) ? 'Move row up (within same reference)' : 'Cannot move up (first row of reference)'}>
+                          <span>
+                            <IconButton
+                              onClick={() => handleMoveRowUp(rowIndex)}
                               size="small"
+                              disabled={!canMoveRowUp(rowIndex) || editingTWLink !== null}
                               sx={{
-                                padding: '2px',
-                                '& .MuiSvgIcon-root': {
-                                  fontSize: '0.8rem',
+                                color: canMoveRowUp(rowIndex) ? '#2e7d32' : '#bdbdbd',
+                                '&:hover': canMoveRowUp(rowIndex) ? { backgroundColor: 'rgba(46, 125, 50, 0.04)' } : {},
+                                '&.Mui-disabled': {
+                                  color: '#bdbdbd',
                                 },
+                                mr: 0.5,
                               }}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                onClearDisambiguation(getActualRowIndex(rowIndex), cellIndex);
+                            >
+                              <ArrowUpIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title={canMoveRowDown(rowIndex) ? 'Move row down (within same reference)' : 'Cannot move down (last row of reference)'}>
+                          <span>
+                            <IconButton
+                              onClick={() => handleMoveRowDown(rowIndex)}
+                              size="small"
+                              disabled={!canMoveRowDown(rowIndex) || editingTWLink !== null}
+                              sx={{
+                                color: canMoveRowDown(rowIndex) ? '#2e7d32' : '#bdbdbd',
+                                '&:hover': canMoveRowDown(rowIndex) ? { backgroundColor: 'rgba(46, 125, 50, 0.04)' } : {},
+                                '&.Mui-disabled': {
+                                  color: '#bdbdbd',
+                                },
+                                mr: 0.5,
                               }}
-                            />
-                          </Tooltip>
-                        )}
-                        <Box sx={{ flex: 1 }}>{cell}</Box>
-                      </TableCell>
-                    );
-                  }
+                            >
+                              <ArrowDownIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </>
+                    )}
+                    <Tooltip title="Show Scripture Context">
+                      <IconButton
+                        onClick={() => {
+                          if (onShowScripture) {
+                            const reference = row[referenceIndex] || '';
+                            const origWords = row[origWordsIndex] || '';
+                            const glQuote = row[glQuoteIndex] || origWords; // Use GLQuote if available, fallback to OrigWords
+                            const occurrence = row[occurrenceIndex] || '1';
+                            const glOccurrence = row[glOccurrenceIndex] || occurrence; // Use GLOccurrence if available, fallback to Occurrence
 
-                  // Default cell rendering
-                  return <TableCell key={cellIndex}>{cell}</TableCell>;
-                })}
+                            // Parse reference to get chapter and verse
+                            const refMatch = reference.match(/(\d+):(\d+)/);
+                            const chapter = refMatch ? parseInt(refMatch[1]) : 1;
+                            const verse = refMatch ? parseInt(refMatch[2]) : 1;
 
-                <TableCell sx={{ minWidth: '240px !important', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                  {/* Move row up/down buttons - only show when not searching/filtering */}
-                  {!(searchTerm.trim() || Object.values(filters).some((v) => v !== null && v !== '')) && (
-                    <>
-                      <Tooltip title={canMoveRowUp(rowIndex) ? 'Move row up (within same reference)' : 'Cannot move up (first row of reference)'}>
-                        <span>
-                          <IconButton
-                            onClick={() => handleMoveRowUp(rowIndex)}
-                            size="small"
-                            disabled={!canMoveRowUp(rowIndex) || editingTWLink !== null}
-                            sx={{
-                              color: canMoveRowUp(rowIndex) ? '#2e7d32' : '#bdbdbd',
-                              '&:hover': canMoveRowUp(rowIndex) ? { backgroundColor: 'rgba(46, 125, 50, 0.04)' } : {},
-                              '&.Mui-disabled': {
-                                color: '#bdbdbd',
-                              },
-                              mr: 0.5,
-                            }}
-                          >
-                            <ArrowUpIcon fontSize="small" />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                      <Tooltip title={canMoveRowDown(rowIndex) ? 'Move row down (within same reference)' : 'Cannot move down (last row of reference)'}>
-                        <span>
-                          <IconButton
-                            onClick={() => handleMoveRowDown(rowIndex)}
-                            size="small"
-                            disabled={!canMoveRowDown(rowIndex) || editingTWLink !== null}
-                            sx={{
-                              color: canMoveRowDown(rowIndex) ? '#2e7d32' : '#bdbdbd',
-                              '&:hover': canMoveRowDown(rowIndex) ? { backgroundColor: 'rgba(46, 125, 50, 0.04)' } : {},
-                              '&.Mui-disabled': {
-                                color: '#bdbdbd',
-                              },
-                              mr: 0.5,
-                            }}
-                          >
-                            <ArrowDownIcon fontSize="small" />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                    </>
-                  )}
-                  <Tooltip title="Show Scripture Context">
-                    <IconButton
-                      onClick={() => {
-                        if (onShowScripture) {
-                          const reference = row[referenceIndex] || '';
-                          const origWords = row[origWordsIndex] || '';
-                          const glQuote = row[glQuoteIndex] || origWords; // Use GLQuote if available, fallback to OrigWords
-                          const occurrence = row[occurrenceIndex] || '1';
-                          const glOccurrence = row[glOccurrenceIndex] || occurrence; // Use GLOccurrence if available, fallback to Occurrence
-
-                          // Parse reference to get chapter and verse
-                          const refMatch = reference.match(/(\d+):(\d+)/);
-                          const chapter = refMatch ? parseInt(refMatch[1]) : 1;
-                          const verse = refMatch ? parseInt(refMatch[2]) : 1;
-
-                          onShowScripture({
-                            bookId: selectedBook?.value || 'mat',
-                            chapter,
-                            verse,
-                            quote: glQuote, // Use GLQuote for advanced highlighting
-                            origWords, // Keep original words for reference
-                            occurrence: glQuote !== origWords ? parseInt(glOccurrence) || 1 : parseInt(occurrence) || 1, // Use GLOccurrence for GLQuote, Occurrence for OrigWords
-                          });
-                        }
-                      }}
-                      size="small"
-                      disabled={editingTWLink !== null}
-                      sx={{
-                        color: '#1976d2',
-                        '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
-                        mr: 0.5,
-                      }}
-                    >
-                      <BookIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  {/* Edit icon removed — click the TWLink cell to edit */}
-                  <Tooltip title="Delete just this one TWL">
-                    <IconButton
-                      onClick={() => onDeleteRow(getActualRowIndex(rowIndex))}
-                      size="small"
-                      disabled={editingTWLink !== null}
-                      sx={{
-                        color: '#d32f2f',
-                        '&:hover': { backgroundColor: 'rgba(211, 47, 47, 0.04)' },
-                        mr: 0.5,
-                      }}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Unlink this Word">
-                    <IconButton
-                      onClick={() => onUnlinkRow(getActualRowIndex(rowIndex))}
-                      size="small"
-                      disabled={editingTWLink !== null}
-                      sx={{
-                        color: 'red',
-                        '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.04)' },
-                      }}
-                    >
-                      <UnlinkIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </TableCell>
-              </TableRow>
-            ))}
+                            onShowScripture({
+                              bookId: selectedBook?.value || 'mat',
+                              chapter,
+                              verse,
+                              quote: glQuote, // Use GLQuote for advanced highlighting
+                              origWords, // Keep original words for reference
+                              occurrence: glQuote !== origWords ? parseInt(glOccurrence) || 1 : parseInt(occurrence) || 1, // Use GLOccurrence for GLQuote, Occurrence for OrigWords
+                            });
+                          }
+                        }}
+                        size="small"
+                        disabled={editingTWLink !== null}
+                        sx={{
+                          color: '#1976d2',
+                          '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
+                          mr: 0.5,
+                        }}
+                      >
+                        <BookIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    {/* Edit icon removed — click the TWLink cell to edit */}
+                    <Tooltip title={isDeleted ? 'Restore this row' : 'Delete just this one TWL'}>
+                      <IconButton
+                        onClick={() => handleSoftDelete(getActualRowIndex(rowIndex))}
+                        size="small"
+                        disabled={editingTWLink !== null}
+                        sx={{
+                          color: isDeleted ? '#2e7d32' : '#d32f2f',
+                          '&:hover': { backgroundColor: isDeleted ? 'rgba(46, 125, 50, 0.04)' : 'rgba(211, 47, 47, 0.04)' },
+                          mr: 0.5,
+                        }}
+                      >
+                        {isDeleted ? <RestoreIcon fontSize="small" /> : <DeleteIcon fontSize="small" />}
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Unlink this Word">
+                      <IconButton
+                        onClick={() => onUnlinkRow(getActualRowIndex(rowIndex))}
+                        size="small"
+                        disabled={editingTWLink !== null}
+                        sx={{
+                          color: 'red',
+                          '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.04)' },
+                        }}
+                      >
+                        <UnlinkIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>

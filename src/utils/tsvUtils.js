@@ -221,6 +221,7 @@ export const compareReferences = (ref1, ref2) => {
 
 /**
  * Process TSV content to show only first 6 columns or all columns
+ * When showOnlySixColumns is true, also filters out DELETED rows
  */
 export const processTsvContent = (content, showOnlySixColumns) => {
   if (!content) return '';
@@ -228,12 +229,26 @@ export const processTsvContent = (content, showOnlySixColumns) => {
   if (!showOnlySixColumns) return content;
 
   const lines = content.split('\n');
-  return lines
-    .map((line) => {
+  const processedLines = [];
+
+  lines.forEach((line, index) => {
+    if (index === 0) {
+      // Always include the header
       const columns = line.split('\t');
-      return columns.slice(0, 6).join('\t');
-    })
-    .join('\n');
+      processedLines.push(columns.slice(0, 6).join('\t'));
+    } else {
+      // For data rows, filter out DELETED rows
+      const columns = line.split('\t');
+      const referenceColumn = columns[0] || '';
+
+      // Skip rows that start with DELETED when processing for commit
+      if (!referenceColumn.startsWith('DELETED ')) {
+        processedLines.push(columns.slice(0, 6).join('\t'));
+      }
+    }
+  });
+
+  return processedLines.join('\n');
 };
 
 /**

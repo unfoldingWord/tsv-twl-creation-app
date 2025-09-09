@@ -185,22 +185,24 @@ export const filterUnlinkedWordsWithData = (tsvContent, unlinkedWordsData) => {
   const headers = lines[0].split('\t');
   const origWordsIndex = headers.findIndex(h => h === 'OrigWords');
   const twLinkIndex = headers.findIndex(h => h === 'TWLink');
+  const referenceIndex = headers.findIndex(h => h === 'Reference');
 
   if (origWordsIndex === -1 || twLinkIndex === -1) {
     return tsvContent; // Can't filter without required columns
   }
 
-  // Keep header and filter data rows
-  const filteredLines = [lines[0]]; // Keep header
+  // Keep header and process data rows
+  const updatedLines = [lines[0]]; // Keep header
 
   for (let i = 1; i < lines.length; i++) {
     const columns = lines[i].split('\t');
     if (columns.length > Math.max(origWordsIndex, twLinkIndex)) {
       const origWords = columns[origWordsIndex];
       const twLink = columns[twLinkIndex];
+      const reference = referenceIndex !== -1 ? columns[referenceIndex] || '' : '';
 
-      // Check if this combination should be filtered out
-      const shouldFilter = activeUnlinkedWords.some(unlinkedWord => {
+      // Check if this combination should be soft deleted
+      const shouldSoftDelete = activeUnlinkedWords.some(unlinkedWord => {
         const normalizedOrigWords = normalizeHebrewText(origWords);
         const normalizedUnlinkedOrigWords = normalizeHebrewText(unlinkedWord.origWords);
         const normalizedTWLink = twLink.trim();
@@ -210,16 +212,23 @@ export const filterUnlinkedWordsWithData = (tsvContent, unlinkedWordsData) => {
           normalizedTWLink === normalizedUnlinkedTWLink;
       });
 
-      if (!shouldFilter) {
-        filteredLines.push(lines[i]);
+      if (shouldSoftDelete && !reference.startsWith('DELETED ')) {
+        // Soft delete - add DELETED prefix to Reference column
+        const updatedRow = [...columns];
+        if (referenceIndex !== -1) {
+          updatedRow[referenceIndex] = `DELETED ${reference}`;
+        }
+        updatedLines.push(updatedRow.join('\t'));
+      } else {
+        updatedLines.push(lines[i]);
       }
     } else {
       // Keep lines that don't have enough columns (probably empty lines)
-      filteredLines.push(lines[i]);
+      updatedLines.push(lines[i]);
     }
   }
 
-  return filteredLines.join('\n');
+  return updatedLines.join('\n');
 };
 
 /**
@@ -245,31 +254,40 @@ export const filterUnlinkedWords = (tsvContent) => {
   const headers = lines[0].split('\t');
   const origWordsIndex = headers.findIndex(h => h === 'OrigWords');
   const twLinkIndex = headers.findIndex(h => h === 'TWLink');
+  const referenceIndex = headers.findIndex(h => h === 'Reference');
 
   if (origWordsIndex === -1 || twLinkIndex === -1) {
     return tsvContent; // Can't filter without required columns
   }
 
-  // Keep header and filter data rows
-  const filteredLines = [lines[0]]; // Keep header
+  // Keep header and process data rows
+  const updatedLines = [lines[0]]; // Keep header
 
   for (let i = 1; i < lines.length; i++) {
     const columns = lines[i].split('\t');
     if (columns.length > Math.max(origWordsIndex, twLinkIndex)) {
       const origWords = columns[origWordsIndex];
       const twLink = columns[twLinkIndex];
+      const reference = referenceIndex !== -1 ? columns[referenceIndex] || '' : '';
 
-      // Keep row if it's not in the unlinked words list
-      if (!isWordUnlinked(origWords, twLink)) {
-        filteredLines.push(lines[i]);
+      // Check if row should be soft deleted
+      if (isWordUnlinked(origWords, twLink) && !reference.startsWith('DELETED ')) {
+        // Soft delete - add DELETED prefix to Reference column
+        const updatedRow = [...columns];
+        if (referenceIndex !== -1) {
+          updatedRow[referenceIndex] = `DELETED ${reference}`;
+        }
+        updatedLines.push(updatedRow.join('\t'));
+      } else {
+        updatedLines.push(lines[i]);
       }
     } else {
       // Keep malformed rows as-is
-      filteredLines.push(lines[i]);
+      updatedLines.push(lines[i]);
     }
   }
 
-  return filteredLines.join('\n');
+  return updatedLines.join('\n');
 };
 
 /**

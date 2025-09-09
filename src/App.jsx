@@ -350,9 +350,9 @@ function App() {
   };
 
   /**
-   * Handle row deletion from table
+   * Handle row deletion/restoration from table (soft delete)
    */
-  const handleDeleteRow = (rowIndex) => {
+  const handleDeleteRow = (rowIndex, newReference, action) => {
     if (!twlContent) return;
 
     // Create backup before making changes
@@ -362,16 +362,36 @@ function App() {
     const lines = twlContent.split('\n').filter((line) => line.trim());
     if (lines.length === 0) return;
 
-    // Remove the specified row (add 1 to skip header)
-    const newLines = lines.filter((_, index) => index !== rowIndex + 1);
-    let newContent = newLines.join('\n');
+    // If newReference is provided, it's a soft delete/restore operation
+    if (newReference !== undefined && action) {
+      const headers = lines[0].split('\t');
+      const referenceIndex = headers.findIndex((header) => header === 'Reference');
 
-    // Normalize column count to ensure consistency
-    newContent = normalizeTsvColumnCount(newContent);
+      if (referenceIndex >= 0 && lines[rowIndex + 1]) {
+        const rowData = lines[rowIndex + 1].split('\t');
+        rowData[referenceIndex] = newReference;
+        lines[rowIndex + 1] = rowData.join('\t');
 
-    setTwlContent(newContent);
-    // Save to localStorage after deletion
-    saveTwlContent(newContent);
+        let newContent = lines.join('\n');
+        // Normalize column count to ensure consistency
+        newContent = normalizeTsvColumnCount(newContent);
+
+        setTwlContent(newContent);
+        // Save to localStorage after modification
+        saveTwlContent(newContent);
+      }
+    } else {
+      // Fallback to old behavior (hard delete) if no newReference provided
+      const newLines = lines.filter((_, index) => index !== rowIndex + 1);
+      let newContent = newLines.join('\n');
+
+      // Normalize column count to ensure consistency
+      newContent = normalizeTsvColumnCount(newContent);
+
+      setTwlContent(newContent);
+      // Save to localStorage after deletion
+      saveTwlContent(newContent);
+    }
   };
 
   /**
@@ -420,9 +440,9 @@ function App() {
     // Add to unlinked words (both server and local)
     await addUnlinkedWord(selectedBook?.value || 'Unknown', reference, origWords, twLink, glQuote);
 
-    // Remove all rows that match this OrigWords and TWLink combination (using normalized comparison)
-    const filteredLines = [lines[0]]; // Keep header
-    let removedCount = 0;
+    // Soft delete all rows that match this OrigWords and TWLink combination (using normalized comparison)
+    const updatedLines = [lines[0]]; // Keep header
+    let markedDeletedCount = 0;
 
     console.log(`Scanning ${lines.length - 1} rows for matches...`);
 
@@ -430,6 +450,7 @@ function App() {
       const currentRow = lines[i].split('\t');
       const currentOrigWords = currentRow[origWordsIndex] || '';
       const currentTWLink = currentRow[twLinkIndex] || '';
+      const currentReference = referenceIndex !== -1 ? currentRow[referenceIndex] || '' : '';
 
       // Normalize current row text for comparison
       const currentNormalizedOrigWords = normalizeHebrewText(currentOrigWords);
@@ -438,15 +459,21 @@ function App() {
       // Check if this row matches
       const origWordsMatch = currentNormalizedOrigWords === normalizedOrigWords;
       const twLinkMatch = currentNormalizedTWLink === normalizedTWLink;
-      const shouldRemove = origWordsMatch && twLinkMatch;
+      const shouldMarkDeleted = origWordsMatch && twLinkMatch;
 
-      if (shouldRemove) {
-        removedCount++;
-        console.log(`REMOVING row ${i}: OrigWords="${currentOrigWords}" (norm: "${currentNormalizedOrigWords}"), TWLink="${currentTWLink}"`);
+      if (shouldMarkDeleted && !currentReference.startsWith('DELETED ')) {
+        // Soft delete - add DELETED prefix to Reference column
+        const updatedRow = [...currentRow];
+        if (referenceIndex !== -1) {
+          updatedRow[referenceIndex] = `DELETED ${currentReference}`;
+        }
+        updatedLines.push(updatedRow.join('\t'));
+        markedDeletedCount++;
+        console.log(`SOFT DELETING row ${i}: OrigWords="${currentOrigWords}" (norm: "${currentNormalizedOrigWords}"), TWLink="${currentTWLink}"`);
       } else {
-        filteredLines.push(lines[i]);
+        updatedLines.push(lines[i]);
         // Log first few non-matches to understand what's different
-        if (removedCount === 0 && i <= 5) {
+        if (markedDeletedCount === 0 && i <= 5) {
           console.log(
             `KEEPING row ${i}: OrigWords="${currentOrigWords}" (norm: "${currentNormalizedOrigWords}"), TWLink="${currentTWLink}" | OrigMatch: ${origWordsMatch}, TWMatch: ${twLinkMatch}`
           );
@@ -454,9 +481,9 @@ function App() {
       }
     }
 
-    console.log(`Removed ${removedCount} rows with normalized OrigWords="${normalizedOrigWords}" and TWLink="${normalizedTWLink}"`);
+    console.log(`Soft deleted ${markedDeletedCount} rows with normalized OrigWords="${normalizedOrigWords}" and TWLink="${normalizedTWLink}"`);
 
-    let newContent = filteredLines.join('\n');
+    let newContent = updatedLines.join('\n');
     // Normalize column count to ensure consistency
     newContent = normalizeTsvColumnCount(newContent);
     setTwlContent(newContent);
@@ -504,9 +531,9 @@ function App() {
   };
 
   /**
-   * Handle clearing disambiguation content
+   * Handle disambiguation done/undone toggle
    */
-  const handleClearDisambiguation = (rowIndex, cellIndex) => {
+  const handleClearDisambiguation = (rowIndex, cellIndex, newDisambiguation, action) => {
     if (!twlContent) return;
 
     // Create backup before making changes
@@ -522,8 +549,12 @@ function App() {
     // Parse the target row
     const row = lines[dataRowIndex].split('\t');
 
-    // Clear the disambiguation field
-    row[cellIndex] = '';
+    // If newDisambiguation is provided, use it; otherwise clear the field (fallback to old behavior)
+    if (newDisambiguation !== undefined) {
+      row[cellIndex] = newDisambiguation;
+    } else {
+      row[cellIndex] = '';
+    }
 
     // Update the content
     lines[dataRowIndex] = row.join('\t');
@@ -531,7 +562,7 @@ function App() {
     // Normalize column count to ensure consistency
     newContent = normalizeTsvColumnCount(newContent);
     setTwlContent(newContent);
-    // Save to localStorage after clearing disambiguation
+    // Save to localStorage after updating disambiguation
     saveTwlContent(newContent);
   };
 
