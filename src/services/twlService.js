@@ -42,9 +42,10 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
   const generatedOccurrenceIndex = generatedHeaders.findIndex((h) => h === 'Occurrence');
   const generatedTWLinkIndex = generatedHeaders.findIndex((h) => h === 'TWLink');
   const generatedGLQuoteIndex = generatedHeaders.findIndex((h) => h === 'GLQuote');
+  const generatedDisambiguationIndex = generatedHeaders.findIndex((h) => h === 'Disambiguation');
 
   console.log('Generated headers:', generatedHeaders);
-  console.log('Generated indices:', { origWords: generatedOrigWordsIndex, occurrence: generatedOccurrenceIndex, glquote: generatedGLQuoteIndex });
+  console.log('Generated indices:', { origWords: generatedOrigWordsIndex, occurrence: generatedOccurrenceIndex, glquote: generatedGLQuoteIndex, disambiguation: generatedDisambiguationIndex });
 
   // Find column indices for existing content (may be different if structure differs)
   const existingOrigWordsIndex = existing.headers ? existing.headers.findIndex((h) => h === 'OrigWords') : generatedOrigWordsIndex;
@@ -104,18 +105,18 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
       const generatedTWLink = generatedRow[generatedTWLinkIndex];
       const existingTWLink = existingRow[existingTWLinkIndex];
 
-      if (generatedTWLink !== existingTWLink) {
+      if (generatedTWLink !== existingTWLink && generatedDisambiguationIndex >= 0) {
         const existingArticle = existingTWLink.split('/').slice(-2).join('/');
         const generatedArticle = generatedTWLink.split('/').slice(-2).join('/');
 
         let disambiguations = [generatedArticle];
-        if (generatedRow[8] && generatedRow[8].trim()) {
-          disambiguations = generatedRow[8].trim().replace(/^\(/, '').replace(/\)$/, '').split(',').map(d => d.trim());
+        if (generatedRow[generatedDisambiguationIndex] && generatedRow[generatedDisambiguationIndex].trim()) {
+          disambiguations = generatedRow[generatedDisambiguationIndex].trim().replace(/^\(/, '').replace(/\)$/, '').split(',').map(d => d.trim());
         }
         if (!disambiguations.includes(existingArticle)) {
           disambiguations.unshift(existingArticle);
         }
-        updatedRow[8] = `(${disambiguations.join(', ')})`;
+        updatedRow[generatedDisambiguationIndex] = `(${disambiguations.join(', ')})`;
       }
 
       // Add "MERGED" to Merge Status column
