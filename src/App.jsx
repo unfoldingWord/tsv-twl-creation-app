@@ -1311,7 +1311,7 @@ function App() {
               {existingTwlContent.trim() && !existingTwlValid && (
                 <Alert severity="error" sx={{ mt: 1 }}>
                   Invalid TWL format. Must have exactly 6 columns, or 8-12 columns with proper headers (Reference, ID, Tags, OrigWords, Occurrence, TWLink, GLQuote, GLOccurrence,
-                  [Strongs], [Variant of], [Disambiguation], [Merge Status]).
+                  [Variant of], [Disambiguation], [Merge Status]).
                 </Alert>
               )}
 

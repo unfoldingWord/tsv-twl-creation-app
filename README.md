@@ -81,7 +81,6 @@ The search feature allows you to find content across multiple columns:
 
 **🎯 Exact Match Columns** (case-insensitive):
 - **📍 Reference**: Search for exact Bible references (e.g., "1:1", "gen 1:1")
-- **🔢 Strongs**: Search for exact Strong's numbers (e.g., "G123", "h456")
 
 **🎯 Exact Match Columns** (case-sensitive):
 - **📊 Merge Status**: Search for exact status values ("OLD", "NEW", "MERGED")
@@ -211,7 +210,7 @@ The search feature allows you to find content across multiple columns:
 - **📊 Only the first 6 columns** (standard TWL format) are uploaded to DCS
 - **🌿 A new branch is created** with your changes
 - **🔄 A Pull Request is automatically opened** for review
-- **📝 Extended columns** (Strongs, Disambiguation, etc.) are not included in DCS
+- **📝 Extended columns** (Disambiguation, etc.) are not included in DCS
 
 ### ⚠️ Before Committing, Ensure:
 - **❓ All disambiguation options** have been reviewed and selected

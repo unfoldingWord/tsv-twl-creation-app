@@ -27,6 +27,8 @@ export const isValidTsvStructure = (content) => {
 
 /**
  * Validate if TSV content has the correct headers for extended formats
+ * Only requires the 6 core columns: Reference, ID, Tags, OrigWords, Occurrence, TWLink
+ * Additional columns are allowed and will be preserved during import
  */
 export const isValidExtendedTsvStructure = (content) => {
   if (!content || typeof content !== 'string') return false;
@@ -40,73 +42,44 @@ export const isValidExtendedTsvStructure = (content) => {
   const headers = lines[0].split('\t');
   const columnCount = headers.length;
 
-  // Expected headers for 8-9 columns (legacy format with GLQuote/GLOccurrence)
-  const expected8Headers = ['Reference', 'ID', 'Tags', 'OrigWords', 'Occurrence', 'TWLink', 'GLQuote', 'GLOccurrence'];
-  const expected9Headers = [...expected8Headers, 'Merge Status'];
+  // Must have at least 6 columns for the core TWL format
+  if (columnCount < 6) {
+    return false;
+  }
 
-  // Expected headers for 10-11 columns (legacy format with Disambiguation and Context)
-  const expected10Headers = ['Reference', 'ID', 'Tags', 'OrigWords', 'Occurrence', 'TWLink', 'GLQuote', 'GLOccurrence', 'Disambiguation', 'Context'];
-  const expected11HeadersOld = [...expected10Headers, 'Merge Status'];
+  // Required core columns in order (first 6 positions)
+  const requiredHeaders = ['Reference', 'ID', 'Tags', 'OrigWords', 'Occurrence', 'TWLink'];
 
-  // Expected headers for NEW format (11-12 columns with Strongs and Variant of)
-  const expected11Headers = ['Reference', 'ID', 'Tags', 'OrigWords', 'Occurrence', 'TWLink', 'GLQuote', 'GLOccurrence', 'Strongs', 'Variant of', 'Disambiguation'];
-  const expected12Headers = [...expected11Headers, 'Merge Status'];
-
-  // Check if headers match expected format
-  let expectedHeaders = [];
-  let allowMissingLastColumn = false;
-
-  if (columnCount === 8) {
-    expectedHeaders = expected8Headers;
-  } else if (columnCount === 9) {
-    expectedHeaders = expected9Headers;
-  } else if (columnCount === 10) {
-    expectedHeaders = expected10Headers;
-  } else if (columnCount === 11) {
-    // Check if it's the old format or new format
-    if (headers[8] === 'Disambiguation') {
-      expectedHeaders = expected11HeadersOld; // Old format: Disambiguation at index 8
-    } else if (headers[8] === 'Strongs') {
-      expectedHeaders = expected11Headers; // New format: Strongs at index 8
-    } else {
+  // Validate that the first 6 headers match the required core columns
+  for (let i = 0; i < requiredHeaders.length; i++) {
+    if (headers[i] !== requiredHeaders[i]) {
+      console.log(`Header mismatch at position ${i}: expected "${requiredHeaders[i]}", got "${headers[i]}"`);
       return false;
     }
-  } else if (columnCount === 12) {
-    expectedHeaders = expected12Headers;
-    // For 12-column format, allow data rows to have 11 or 12 columns
-    // (some may be missing the "Merge Status" column)
-    allowMissingLastColumn = true;
-  } else {
-    return false;
   }
 
-  // Validate headers
-  const headersMatch = headers.every((header, index) => header === expectedHeaders[index]);
-  if (!headersMatch) {
-    console.log('Header mismatch:', headers, expectedHeaders);
-    return false;
-  }
+  // Allow any additional columns beyond the core 6
+  // Additional columns might include: GLQuote, GLOccurrence, Variant of, Disambiguation, Context, Merge Status, etc.
+  console.log(`Valid extended TSV structure with ${columnCount} columns:`, headers);
 
-  // Validate that all data rows have consistent column count
+  // Validate that all data rows have consistent column count with the header
   for (let i = 1; i < lines.length; i++) {
     const rowColumns = lines[i].split('\t');
-    if (allowMissingLastColumn) {
-      // For 12-column header format, allow rows to have 11 or 12 columns
-      if (rowColumns.length !== 11 && rowColumns.length !== 12) {
+    if (rowColumns.length !== columnCount) {
+      // Allow rows to have fewer columns (missing trailing empty columns)
+      // but not more columns than the header
+      if (rowColumns.length > columnCount) {
+        console.log(`Row ${i} has too many columns: ${rowColumns.length} > ${columnCount}`);
         return false;
       }
-    } else {
-      // For other formats, require exact column count
-      if (rowColumns.length !== columnCount) {
-        console.log("Row " + i + ":", rowColumns.length, '!=', columnCount);
-        return false;
-      }
+      // Missing trailing columns is acceptable (will be padded with empty strings)
     }
   }
 
   return true;
 };/**
- * Check if TSV content is in extended format (8-12 columns) and should be loaded directly
+ * Check if TSV content is in extended format (6+ columns) and should be loaded directly
+ * Extended format means it has the 6 core columns plus potentially additional columns
  */
 export const isExtendedTsvFormat = (content) => {
   if (!content || typeof content !== 'string') return false;
@@ -118,7 +91,10 @@ export const isExtendedTsvFormat = (content) => {
   if (lines.length === 0) return false;
 
   const firstLineColumns = lines[0].split('\t');
-  return [8, 9, 10, 11, 12].includes(firstLineColumns.length) && isValidExtendedTsvStructure(content);
+
+  // Must have at least 6 columns (the core TWL format)
+  // but can have any number of additional columns
+  return firstLineColumns.length >= 6 && isValidExtendedTsvStructure(content);
 };
 
 /**

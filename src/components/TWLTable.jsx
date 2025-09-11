@@ -67,7 +67,7 @@ const TWLTable = ({
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showDeletedRows, setShowDeletedRows] = useState(false);
+  const [deletedRowsMode, setDeletedRowsMode] = useState('hide'); // 'hide' | 'show' | 'only'
   const [filterAnchorEl, setFilterAnchorEl] = useState(null);
   const [filters, setFilters] = useState({
     hasDisambiguation: null, // null = show all, 'need' = needs disambiguation, 'done' = been disambiguated, false = no disambiguation
@@ -231,23 +231,64 @@ const TWLTable = ({
   const twLinkIndex = tableData.headers.findIndex((header) => header === 'TWLink');
   const glQuoteIndex = tableData.headers.findIndex((header) => header === 'GLQuote');
   const glOccurrenceIndex = tableData.headers.findIndex((header) => header === 'GLOccurrence');
-  const strongsIndex = tableData.headers.findIndex((header) => header === 'Strongs');
   const disambiguationIndex = tableData.headers.findIndex((header) => header === 'Disambiguation');
   const variantOfIndex = tableData.headers.findIndex((header) => header === 'Variant of');
   const mergeStatusIndex = tableData.headers.findIndex((header) => header === 'Merge Status');
   const idIndex = tableData.headers.findIndex((header) => header === 'ID');
   const tagsIndex = tableData.headers.findIndex((header) => header === 'Tags');
 
-  // Filter and search logic
-  const filteredRows = useMemo(() => {
-    let filtered = tableData.rows;
+  // Check if there are any deleted rows in the data
+  const hasDeletedRows = useMemo(() => {
+    if (referenceIndex < 0) return false;
 
-    // First filter out deleted rows unless showDeletedRows is checked
-    if (!showDeletedRows) {
-      filtered = filtered.filter((row) => {
-        const reference = referenceIndex >= 0 ? row[referenceIndex] : '';
-        return !reference.startsWith('DELETED ');
-      });
+    // Debug: Log first 5 references to see what they look like
+    console.log(
+      'First 5 references:',
+      tableData.rows.slice(0, 5).map((row) => `"${row[referenceIndex]}"`)
+    );
+
+    const deletedRows = tableData.rows.filter((row) => {
+      const reference = row[referenceIndex] || '';
+      return reference.startsWith('DELETED ');
+    });
+
+    console.log(`Found ${deletedRows.length} deleted rows out of ${tableData.rows.length} total rows`);
+
+    if (deletedRows.length > 0) {
+      console.log(
+        'Sample deleted references:',
+        deletedRows.slice(0, 3).map((row) => row[referenceIndex])
+      );
+    }
+
+    return deletedRows.length > 0;
+  }, [tableData.rows, referenceIndex]);
+
+  // Filter and search logic with separate tracking for deleted/regular rows
+  const filteredData = useMemo(() => {
+    let allRows = tableData.rows;
+
+    // Separate rows into deleted and regular
+    const regularRows = [];
+    const deletedRows = [];
+
+    allRows.forEach((row) => {
+      const reference = referenceIndex >= 0 ? row[referenceIndex] : '';
+      if (reference.startsWith('DELETED ')) {
+        deletedRows.push(row);
+      } else {
+        regularRows.push(row);
+      }
+    });
+
+    // Apply deleted rows mode filter first
+    let filtered = [];
+    if (deletedRowsMode === 'hide') {
+      filtered = regularRows; // Only regular rows
+    } else if (deletedRowsMode === 'show') {
+      filtered = [...regularRows, ...deletedRows]; // Both types
+    } else if (deletedRowsMode === 'only') {
+      filtered = deletedRows; // Only deleted rows
     }
 
     // Apply search filter
@@ -271,10 +312,6 @@ const TWLTable = ({
         }
         // GLQuote (partial match)
         if (glQuoteIndex >= 0 && row[glQuoteIndex] && row[glQuoteIndex].toLowerCase().includes(searchLower)) {
-          return true;
-        }
-        // Strongs (exact match, case insensitive)
-        if (strongsIndex >= 0 && row[strongsIndex] && row[strongsIndex].toLowerCase() === searchLower) {
           return true;
         }
         // Merge Status (exact match, case sensitive)
@@ -331,7 +368,7 @@ const TWLTable = ({
       });
     }
 
-    // Apply invalid RC link
+    // Apply invalid RC link filter
     if (filters.isInvalidRCLink !== null) {
       filtered = filtered.filter((row) => {
         const isInvalidRCLink = twLinkIndex >= 0 && row[twLinkIndex] && !twRcLinks.includes(row[twLinkIndex]);
@@ -353,17 +390,33 @@ const TWLTable = ({
       });
     }
 
-    return filtered;
+    // Calculate counts for status display
+    const filteredRegularRows = filtered.filter((row) => {
+      const reference = referenceIndex >= 0 ? row[referenceIndex] : '';
+      return !reference.startsWith('DELETED ');
+    });
+
+    const filteredDeletedRows = filtered.filter((row) => {
+      const reference = referenceIndex >= 0 ? row[referenceIndex] : '';
+      return reference.startsWith('DELETED ');
+    });
+
+    return {
+      rows: filtered,
+      totalRegularRows: regularRows.length,
+      totalDeletedRows: deletedRows.length,
+      filteredRegularRows: filteredRegularRows.length,
+      filteredDeletedRows: filteredDeletedRows.length,
+    };
   }, [
     tableData.rows,
     searchTerm,
-    showDeletedRows,
+    deletedRowsMode,
     filters,
     referenceIndex,
     origWordsIndex,
     twLinkIndex,
     glQuoteIndex,
-    strongsIndex,
     disambiguationIndex,
     variantOfIndex,
     mergeStatusIndex,
@@ -371,6 +424,9 @@ const TWLTable = ({
     tagsIndex,
     twRcLinks,
   ]);
+
+  // For backwards compatibility, provide filteredRows
+  const filteredRows = filteredData.rows;
 
   // Pagination logic
   const paginatedRows = useMemo(() => {
@@ -655,7 +711,7 @@ const TWLTable = ({
       <Box sx={{ width: '850px', mb: 0, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
         <TextField
           size="small"
-          placeholder="Search Reference, ID, OrigWords, TWLink, GLQuote, Strongs, etc."
+          placeholder="Search Reference, ID, OrigWords, TWLink, GLQuote, etc."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           sx={{ minWidth: 400, flexGrow: 1 }}
@@ -687,7 +743,27 @@ const TWLTable = ({
         >
           Filter
         </Button>
-        <FormControlLabel control={<Checkbox checked={showDeletedRows} onChange={(e) => setShowDeletedRows(e.target.checked)} size="small" />} label="Show Deleted Rows" />
+        {hasDeletedRows && (
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={deletedRowsMode === 'only'}
+                indeterminate={deletedRowsMode === 'show'}
+                onChange={(e) => {
+                  if (deletedRowsMode === 'hide') {
+                    setDeletedRowsMode('show');
+                  } else if (deletedRowsMode === 'show') {
+                    setDeletedRowsMode('only');
+                  } else {
+                    setDeletedRowsMode('hide');
+                  }
+                }}
+                size="small"
+              />
+            }
+            label={deletedRowsMode === 'hide' ? 'Show Deleted Rows' : deletedRowsMode === 'show' ? 'Show All Rows' : 'Show Only Deleted Rows'}
+          />
+        )}
       </Box>
 
       {/* Filter Menu */}
@@ -805,7 +881,37 @@ const TWLTable = ({
           sx={{ '& .MuiTablePagination-toolbar': { minHeight: '52px' } }}
         />
         <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'right' }}>
-          {filteredRows.length !== tableData.rows.length && `Matches ${filteredRows.length} of the ${tableData.rows.length} rows.`}
+          {(searchTerm.trim() || Object.values(filters).some((v) => v !== null && v !== '') || deletedRowsMode !== 'hide') &&
+            (() => {
+              const hasFiltering = searchTerm.trim() || Object.values(filters).some((v) => v !== null && v !== '');
+
+              if (deletedRowsMode === 'only') {
+                return hasFiltering
+                  ? `Matching ${filteredData.filteredDeletedRows} deleted rows`
+                  : `Showing ${filteredData.totalDeletedRows} deleted row${filteredData.totalDeletedRows === 1 ? '' : 's'}`;
+              } else if (deletedRowsMode === 'hide') {
+                return hasFiltering ? `Matching ${filteredData.filteredRegularRows} of ${filteredData.totalRegularRows} rows` : null;
+              } else {
+                // deletedRowsMode === 'show'
+                if (hasFiltering) {
+                  if (filteredData.filteredDeletedRows > 0) {
+                    return `Matching ${filteredData.filteredRegularRows} of ${filteredData.totalRegularRows} rows (and matching ${filteredData.filteredDeletedRows} deleted row${
+                      filteredData.filteredDeletedRows === 1 ? '' : 's'
+                    })`;
+                  } else {
+                    return `Matching ${filteredData.filteredRegularRows} of ${filteredData.totalRegularRows} rows`;
+                  }
+                } else {
+                  if (filteredData.totalDeletedRows > 0) {
+                    return `Showing all ${filteredData.totalRegularRows} rows (and showing ${filteredData.totalDeletedRows} deleted row${
+                      filteredData.totalDeletedRows === 1 ? '' : 's'
+                    })`;
+                  } else {
+                    return `Showing all ${filteredData.totalRegularRows} rows`;
+                  }
+                }
+              }
+            })()}
         </Typography>
       </Box>
 
