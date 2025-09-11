@@ -92,9 +92,9 @@ export const isExtendedTsvFormat = (content) => {
 
   const firstLineColumns = lines[0].split('\t');
 
-  // Must have at least 6 columns (the core TWL format)
-  // but can have any number of additional columns
-  return firstLineColumns.length >= 6 && isValidExtendedTsvStructure(content);
+  // Must have MORE than 6 columns to be considered extended format
+  // Exactly 6 columns should be merged with generated TWL content
+  return firstLineColumns.length > 6 && isValidExtendedTsvStructure(content);
 };
 
 /**
