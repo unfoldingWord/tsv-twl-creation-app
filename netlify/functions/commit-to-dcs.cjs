@@ -10,7 +10,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { content, name, email, message, book, userID } = JSON.parse(event.body);
+    const { content, name, email, message, book, userID, dcsHost: clientDcsHost } = JSON.parse(event.body);
 
     // Validation
     const errors = {};
@@ -33,8 +33,8 @@ exports.handler = async (event, context) => {
     const filePath = `twl_${book.toUpperCase()}.tsv`;
     const commitMsg = message || `Created a new ${filePath} with the TWL Creation app`;
     const dcsToken = process.env.DCS_TOKEN;
-    const dcsHost = process.env.DCS_HOST || 'git.door43.org';
-    const baseUrl = `https://${dcsHost}/api/v1`;
+    const dcsHost = clientDcsHost || process.env.DCS_HOST || 'https://git.door43.org';
+    const baseUrl = `${dcsHost}/api/v1`;
     const headers = {
       'Authorization': `token ${dcsToken}`,
       'accept': 'application/json',
@@ -136,9 +136,9 @@ exports.handler = async (event, context) => {
       const match = msg.match(/issue_id: (\d+)/);
       if (match) {
         const issueId = match[1];
-        prUrl = `https://${dcsHost}/unfoldingWord/en_twl/pulls/${issueId}`;
+        prUrl = `${dcsHost}/unfoldingWord/en_twl/pulls/${issueId}`;
       } else {
-        prUrl = `https://${dcsHost}/unfoldingWord/en_twl/pulls`;
+        prUrl = `${dcsHost}/unfoldingWord/en_twl/pulls`;
       }
       prCreated = false;
     } else {

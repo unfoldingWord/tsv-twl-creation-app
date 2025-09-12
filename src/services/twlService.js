@@ -5,7 +5,7 @@ import { parseTsv, hasHeader, compareReferences } from '../utils/tsvUtils.js';
 import JSZip from 'jszip';
 
 export const fetchTwArchiveZip = async (dcsHost = 'git.door43.org') => {
-  const url = `https://${dcsHost}/unfoldingWord/en_tw/archive/master.zip`;
+  const url = `${dcsHost}/unfoldingWord/en_tw/archive/master.zip`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch TW archive: ${response.statusText}`);
@@ -19,7 +19,7 @@ export const fetchTwArchiveZip = async (dcsHost = 'git.door43.org') => {
  * Merge existing TWL content with newly generated TWL content
  * Uses a pointer-based algorithm to maintain proper order
  */
-export const mergeExistingTwls = async (generatedContent, existingContent, dcsHost = 'git.door43.org') => {
+export const mergeExistingTwls = async (generatedContent, existingContent, dcsHost = 'https://git.door43.org') => {
   if (!existingContent.trim()) {
     return generatedContent; // No existing content to merge
   }

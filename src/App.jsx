@@ -64,15 +64,7 @@ import ScriptureViewer from './components/ScriptureViewer.jsx';
 import packageInfo from '../package.json';
 import { fetchTWLContent } from './services/apiService.js';
 import { mergeExistingTwls } from './services/twlService.js';
-import {
-  isValidTsvStructure,
-  isValidExtendedTsvStructure,
-  isExtendedTsvFormat,
-  processTsvContent,
-  addGLQuoteColumns,
-  ensureUniqueIds,
-  normalizeTsvColumnCount,
-} from './utils/tsvUtils.js';
+import { isValidTsvStructure, isValidExtendedTsvStructure, isExtendedTsvFormat, processTsvContent, ensureUniqueIds, normalizeTsvColumnCount } from './utils/tsvUtils.js';
 import { convertReferenceToTnUrl } from './utils/urlConverters.js';
 import { filterUnlinkedWords, removeUnlinkedWordByContent, getUnlinkedWords } from './utils/unlinkedWords.js';
 import { getUserIdentifier } from './utils/userUtils.js';
@@ -102,19 +94,15 @@ function App() {
     branches,
     branchesLoading,
     branchesError,
-    usfmContent,
     twlContent,
     existingTwlContent,
-    existingTwlContentWithGLQuotes,
     loading,
     error,
     viewMode,
     existingTwlValid,
     // State setters
-    setUsfmContent,
     setTwlContent,
     setExistingTwlContent,
-    setExistingTwlContentWithGLQuotes,
     setLoading,
     setError,
     setViewMode,
@@ -300,6 +288,7 @@ function App() {
           message: message.trim() || undefined,
           userID,
           content: sixColumnContent,
+          dcsHost,
         }),
       });
 
@@ -895,7 +884,7 @@ function App() {
 
     try {
       // Generate TWL using external library
-      let response = await generateTwlByBook(selectedBook.value);
+      let response = await generateTwlByBook(selectedBook.value, { dcsHost });
 
       console.log('Generated TWL (before processing):', response.matchedTsv);
       console.log('No-match TSV:', response.noMatchTsv);
@@ -1143,7 +1132,7 @@ function App() {
       createBackup();
 
       // Generate new TWL using external library
-      let response = await generateTwlByBook(selectedBook.value);
+      let response = await generateTwlByBook(selectedBook.value, { dcsHost });
       console.log('Generated new TWL for update:', response.matchedTsv);
 
       // Process the new TWL similar to initial generation
@@ -1364,7 +1353,8 @@ function App() {
                 TSV TWL Creation App
               </Typography>
               <Typography component="div" sx={{ fontSize: '0.875rem', lineHeight: 1, opacity: 0.95 }}>
-                (v{packageInfo.version}, DCS: {dcsHost === 'qa.door43.org' ? 'QA' : dcsHost === 'develop.door43.org' ? 'DEV' : dcsHost === 'git.door43.org' ? 'PROD' : dcsHost})
+                (v{packageInfo.version}, DCS:{' '}
+                {dcsHost === 'https://qa.door43.org' ? 'QA' : dcsHost === 'https://develop.door43.org' ? 'DEV' : dcsHost === 'https://git.door43.org' ? 'PROD' : dcsHost})
               </Typography>
             </Box>
 

@@ -17,13 +17,13 @@ export const useAppState = () => {
     if (params.get('server')) {
       const server = params.get('server').toLowerCase();
       if (server === 'qa') {
-        return 'qa.door43.org';
+        return 'https://qa.door43.org';
       } else if (server === 'dev' || server === 'develop') {
-        return 'develop.door43.org';
+        return 'https://develop.door43.org';
       } else if (server !== 'prod' && server !== 'production' && server !== 'git') {
-        return server;
+        return server.includes('http') ? server : `https://${server}`;
       } else {
-        return 'git.door43.org';
+        return 'https://git.door43.org';
       }
     }
     if (window.location.hostname === 'localhost' || window.location.hostname.includes('--')) {

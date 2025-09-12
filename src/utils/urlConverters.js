@@ -21,7 +21,7 @@ export const convertRcLinkToUrl = (rcLink, dcsHost = 'git.door43.org') => {
     if (pathParts.length < 3) return null;
 
     const lastThreeParts = pathParts.slice(-3).join('/');
-    return `https://${dcsHost}/unfoldingWord/en_tw/src/master/${lastThreeParts}.md`;
+    return `${dcsHost}/unfoldingWord/en_tw/src/master/${lastThreeParts}.md`;
   } catch (error) {
     console.warn('Error converting rc:// link:', rcLink, error);
     return null;
@@ -87,7 +87,7 @@ export const convertTwLinkToUrl = (twLink, dcsHost = 'git.door43.org') => {
     if (pathParts.length < 3) return null;
 
     const lastThreeParts = pathParts.slice(-3).join('/');
-    return `https://${dcsHost}/unfoldingWord/en_tw/src/master/${lastThreeParts}.md`;
+    return `${dcsHost}/unfoldingWord/en_tw/src/master/${lastThreeParts}.md`;
   } catch (error) {
     console.warn('Error converting TWLink to URL:', twLink, error);
     return null;

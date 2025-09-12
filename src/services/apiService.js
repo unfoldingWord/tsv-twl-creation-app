@@ -7,8 +7,8 @@ import { BibleBookData } from '../common/books.js';
 /**
  * Fetch available branches from the repository
  */
-export const fetchBranches = async (dcsHost = "git.door43.org") => {
-  const response = await fetch(`https://${dcsHost}/api/v1/repos/unfoldingWord/en_twl/branches`);
+export const fetchBranches = async (dcsHost = "https://git.door43.org") => {
+  const response = await fetch(`${dcsHost}/api/v1/repos/unfoldingWord/en_twl/branches`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch branches: ${response.statusText}`);
