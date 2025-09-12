@@ -893,19 +893,24 @@ function App() {
       // let generatedTwl = addGLQuoteColumns(response.matchedTsv);
       let generatedTwl = response.matchedTsv;
 
-      const convertResponse = await convertGLQuotes2OLQuotes({
-        bibleLinks: [`unfoldingWord/en_ult/master`],
-        bookCode: selectedBook.value,
-        tsvContent: generatedTwl,
-        trySeparatorsAndOccurrences: true,
-        dcsUrl: dcsHost,
-      });
+      try {
+        const convertResponse = await convertGLQuotes2OLQuotes({
+          bibleLink: `unfoldingWord/en_ult/master`,
+          bookCode: selectedBook.value,
+          tsvContent: generatedTwl,
+          trySeparatorsAndOccurrences: true,
+          dcsUrl: dcsHost,
+        });
 
-      if (!convertResponse || typeof convertResponse !== 'object' || !convertResponse.output) {
-        throw new Error(`convertGLQuotes2OLQuotes failed: ${JSON.stringify(convertResponse)}`);
+        if (!convertResponse || typeof convertResponse !== 'object' || !convertResponse.output) {
+          throw new Error(`convertGLQuotes2OLQuotes failed: ${JSON.stringify(convertResponse)}`);
+        }
+
+        generatedTwl = convertResponse.output;
+      } catch (error) {
+        console.error('Error in convertGLQuotes2OLQuotes:', error);
+        throw error;
       }
-
-      generatedTwl = convertResponse.output;
 
       // Merge with existing TWL if provided
 
@@ -913,42 +918,53 @@ function App() {
         console.log('Generated TWL before merging:', generatedTwl);
         console.log('Merging with existing TWL:', existingTwlContent);
 
-        const addGlQuotesToExisingResults = await addGLQuoteCols({
-          bibleLinks: 'unfoldingWord/en_ult/master',
-          bookCode: selectedBook.value,
-          tsvContent: existingTwlContent.trim(),
-          trySeparatorsAndOccurrences: true,
-          dcsUrl: dcsHost,
-        });
+        let existingTwlContentWithEnglishOrigWords = '';
+        try {
+          const addGlQuotesToExisingResults = await addGLQuoteCols({
+            bibleLinks: ['unfoldingWord/en_ult/master'],
+            bookCode: selectedBook.value,
+            tsvContent: existingTwlContent.trim(),
+            trySeparatorsAndOccurrences: true,
+            dcsUrl: dcsHost,
+          });
 
-        if (!addGlQuotesToExisingResults || typeof addGlQuotesToExisingResults !== 'object' || !addGlQuotesToExisingResults.output) {
-          throw new Error(`addGLQuoteCols failed: ${JSON.stringify(addGlQuotesToExisingResults)}`);
+          if (!addGlQuotesToExisingResults || typeof addGlQuotesToExisingResults !== 'object' || !addGlQuotesToExisingResults.output) {
+            throw new Error(`addGLQuoteCols failed: ${JSON.stringify(addGlQuotesToExisingResults)}`);
+          }
+
+          existingTwlContentWithEnglishOrigWords = addGlQuotesToExisingResults.output
+            .split('\n')
+            .filter((row) => row.trim() && row.split('\t').length == 8)
+            .map((row, idx) => {
+              const cols = row.split('\t');
+              if (idx === 0) {
+                return [cols[0], cols[1], cols[2], cols[3], cols[4], cols[7], cols[5], cols[6]].join('\t');
+              } else {
+                return [cols[0], cols[1], cols[2], cols[5], cols[6], cols[7], cols[5], cols[6]].join('\t');
+              }
+            })
+            .join('\n');
+        } catch (error) {
+          console.error('Error in addGLQuoteCols:', error);
+          throw error;
         }
 
-        const existingTwlContentWithEnglishOrigWords = addGlQuotesToExisingResults.output
-          .split('\n')
-          .filter((row) => row.trim() && row.split('\t').length == 8)
-          .map((row, idx) => {
-            const cols = row.split('\t');
-            if (idx === 0) {
-              return [cols[0], cols[1], cols[2], cols[3], cols[4], cols[7], cols[5], cols[6]].join('\t');
-            } else {
-              return [cols[0], cols[1], cols[2], cols[5], cols[6], cols[7], cols[5], cols[6]].join('\t');
-            }
-          })
-          .join('\n');
+        try {
+          const convertGl2OlResults = await convertGLQuotes2OLQuotes({
+            bibleLink: 'unfoldingWord/en_ult/master',
+            bookCode: selectedBook.value,
+            tsvContent: existingTwlContentWithEnglishOrigWords,
+            trySeparatorsAndOccurrences: true,
+            dcsUrl: dcsHost,
+          });
 
-        const convertGl2OlResults = await convertGLQuotes2OLQuotes({
-          bibleLinks: ['unfoldingWord/en_ult/master'],
-          bookCode: selectedBook.value,
-          tsvContent: existingTwlContentWithEnglishOrigWords,
-          trySeparatorsAndOccurrences: true,
-          dcsUrl: dcsHost,
-        });
+          console.log('Existing TWL with GLQuotes (after adding GLQuote columns):', convertGl2OlResults.output);
 
-        console.log('Existing TWL with GLQuotes (after adding GLQuote columns):', convertGl2OlResults.output);
-
-        generatedTwl = await mergeExistingTwls(generatedTwl, convertGl2OlResults.output, dcsHost);
+          generatedTwl = await mergeExistingTwls(generatedTwl, convertGl2OlResults.output, dcsHost);
+        } catch (error) {
+          console.error('Error in convertGLQuotes2OLQuotes for existing TWL:', error);
+          throw error;
+        }
 
         console.log('Generated TWL after merging with existing TWL:', generatedTwl);
       }
@@ -1142,7 +1158,7 @@ function App() {
       let newGeneratedTwl = response.matchedTsv;
 
       const convertResponse = await convertGLQuotes2OLQuotes({
-        bibleLinks: [`unfoldingWord/en_ult/master`],
+        bibleLink: `unfoldingWord/en_ult/master`,
         bookCode: selectedBook.value,
         tsvContent: newGeneratedTwl,
         trySeparatorsAndOccurrences: true,
