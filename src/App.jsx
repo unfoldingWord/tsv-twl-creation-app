@@ -38,6 +38,7 @@ import {
   DialogContent,
   DialogActions,
   Link,
+  Snackbar,
 } from '@mui/material';
 import {
   ContentPaste as PasteIcon,
@@ -49,6 +50,7 @@ import {
   ManageAccounts as ManageIcon,
   CloudUpload as CloudUploadIcon,
   GitHub as GitHubIcon,
+  Refresh as UpdateIcon,
 } from '@mui/icons-material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -172,6 +174,12 @@ function App() {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState(null); // 'book-change' or 'generate-twl'
   const [pendingData, setPendingData] = useState(null); // Data related to the pending action
+
+  // Update notification state
+  const [updateNotification, setUpdateNotification] = useState({
+    open: false,
+    message: '',
+  });
 
   // Handle download menu open/close
   const handleDownloadMenuClick = (event) => {
@@ -1119,6 +1127,219 @@ function App() {
   };
 
   /**
+   * Handle update TWL - generate new content and intelligently merge with existing
+   */
+  const handleUpdateTwl = async () => {
+    if (!selectedBook || !twlContent) {
+      setError('Please select a book and generate TWL content first.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      // Create backup before updating
+      createBackup();
+
+      // Generate new TWL using external library
+      let response = await generateTwlByBook(selectedBook.value);
+      console.log('Generated new TWL for update:', response.matchedTsv);
+
+      // Process the new TWL similar to initial generation
+      let newGeneratedTwl = response.matchedTsv;
+
+      const convertResponse = await convertGLQuotes2OLQuotes({
+        bibleLinks: [`unfoldingWord/en_ult/master`],
+        bookCode: selectedBook.value,
+        tsvContent: newGeneratedTwl,
+        trySeparatorsAndOccurrences: true,
+      });
+
+      if (!convertResponse || typeof convertResponse !== 'object' || !convertResponse.output) {
+        throw new Error(`convertGLQuotes2OLQuotes failed during update: ${JSON.stringify(convertResponse)}`);
+      }
+
+      newGeneratedTwl = convertResponse.output;
+
+      // Parse current content
+      const currentLines = twlContent.split('\n').filter((line) => line.trim());
+      if (currentLines.length === 0) {
+        setError('No current TWL content to update.');
+        return;
+      }
+
+      const currentHeaders = currentLines[0].split('\t');
+      const currentRows = currentLines.slice(1).map((line) => line.split('\t'));
+
+      // Parse new generated content
+      const newLines = newGeneratedTwl.split('\n').filter((line) => line.trim());
+      if (newLines.length === 0) {
+        setError('No new TWL content generated.');
+        return;
+      }
+
+      const newHeaders = newLines[0].split('\t');
+      const newRows = newLines.slice(1).map((line) => line.split('\t'));
+
+      // Find column indices for current content
+      const currentReferenceIndex = currentHeaders.findIndex((h) => h === 'Reference');
+      const currentOrigWordsIndex = currentHeaders.findIndex((h) => h === 'OrigWords');
+      const currentOccurrenceIndex = currentHeaders.findIndex((h) => h === 'Occurrence');
+      const currentGLQuoteIndex = currentHeaders.findIndex((h) => h === 'GLQuote');
+      const currentGLOccurrenceIndex = currentHeaders.findIndex((h) => h === 'GLOccurrence');
+      const currentDisambiguationIndex = currentHeaders.findIndex((h) => h === 'Disambiguation');
+      const currentMergeStatusIndex = currentHeaders.findIndex((h) => h === 'Merge Status');
+
+      // Find column indices for new content
+      const newReferenceIndex = newHeaders.findIndex((h) => h === 'Reference');
+      const newOrigWordsIndex = newHeaders.findIndex((h) => h === 'OrigWords');
+      const newOccurrenceIndex = newHeaders.findIndex((h) => h === 'Occurrence');
+      const newGLQuoteIndex = newHeaders.findIndex((h) => h === 'GLQuote');
+      const newGLOccurrenceIndex = newHeaders.findIndex((h) => h === 'GLOccurrence');
+      const newDisambiguationIndex = newHeaders.findIndex((h) => h === 'Disambiguation');
+
+      // Track update statistics
+      let updatedCount = 0;
+      let newRowsCount = 0;
+
+      // Process updates
+      const updatedRows = [...currentRows];
+      const processedNewRows = new Set(); // Track which new rows we've processed
+
+      // First pass: Update existing rows that match new generated rows
+      for (let i = 0; i < currentRows.length; i++) {
+        const currentRow = currentRows[i];
+        const currentReference = currentReferenceIndex >= 0 ? currentRow[currentReferenceIndex] || '' : '';
+        const currentOrigWords = currentOrigWordsIndex >= 0 ? currentRow[currentOrigWordsIndex] || '' : '';
+        const currentOccurrence = currentOccurrenceIndex >= 0 ? currentRow[currentOccurrenceIndex] || '' : '';
+        const currentGLQuote = currentGLQuoteIndex >= 0 ? currentRow[currentGLQuoteIndex] || '' : '';
+        const currentGLOccurrence = currentGLOccurrenceIndex >= 0 ? currentRow[currentGLOccurrenceIndex] || '' : '';
+        const currentDisambiguation = currentDisambiguationIndex >= 0 ? currentRow[currentDisambiguationIndex] || '' : '';
+
+        // Extract clean reference (remove DELETED prefix if present)
+        const cleanReference = currentReference.startsWith('DELETED ') ? currentReference.substring(8) : currentReference;
+
+        // Find matching new row
+        for (let j = 0; j < newRows.length; j++) {
+          if (processedNewRows.has(j)) continue; // Skip already processed new rows
+
+          const newRow = newRows[j];
+          const newReference = newReferenceIndex >= 0 ? newRow[newReferenceIndex] || '' : '';
+          const newOrigWords = newOrigWordsIndex >= 0 ? newRow[newOrigWordsIndex] || '' : '';
+          const newOccurrence = newOccurrenceIndex >= 0 ? newRow[newOccurrenceIndex] || '' : '';
+          const newGLQuote = newGLQuoteIndex >= 0 ? newRow[newGLQuoteIndex] || '' : '';
+          const newGLOccurrence = newGLOccurrenceIndex >= 0 ? newRow[newGLOccurrenceIndex] || '' : '';
+          const newDisambiguation = newDisambiguationIndex >= 0 ? newRow[newDisambiguationIndex] || '' : '';
+
+          // Check if rows match on key fields
+          const referencesMatch = cleanReference === newReference;
+          const origWordsMatch = currentOrigWords === newOrigWords;
+          const occurrenceMatch = currentOccurrence === newOccurrence;
+          const glQuoteMatch = currentGLQuote === newGLQuote;
+          const glOccurrenceMatch = currentGLOccurrence === newGLOccurrence;
+
+          if (referencesMatch && origWordsMatch && occurrenceMatch && glQuoteMatch && glOccurrenceMatch) {
+            // Found a match - check if disambiguation changed
+            const hasCurrentDone = currentDisambiguation.startsWith('DONE ');
+            const currentCleanDisambiguation = hasCurrentDone ? currentDisambiguation.substring(5) : currentDisambiguation;
+
+            if (currentCleanDisambiguation !== newDisambiguation) {
+              // Update the disambiguation while preserving DONE status
+              const updatedDisambiguation = hasCurrentDone ? `DONE ${newDisambiguation}` : newDisambiguation;
+
+              if (currentDisambiguationIndex >= 0) {
+                updatedRows[i][currentDisambiguationIndex] = updatedDisambiguation;
+                updatedCount++;
+              }
+            }
+
+            processedNewRows.add(j); // Mark this new row as processed
+            break; // Found match, no need to continue searching
+          }
+        }
+      }
+
+      // Second pass: Add new rows that weren't matched
+      for (let j = 0; j < newRows.length; j++) {
+        if (processedNewRows.has(j)) continue; // Skip already processed rows
+
+        const newRow = newRows[j];
+        const newReference = newReferenceIndex >= 0 ? newRow[newReferenceIndex] || '' : '';
+
+        // Find where to insert this new row (before other rows with same or later reference)
+        let insertIndex = updatedRows.length; // Default to end
+
+        for (let k = 0; k < updatedRows.length; k++) {
+          const existingRow = updatedRows[k];
+          const existingReference = currentReferenceIndex >= 0 ? existingRow[currentReferenceIndex] || '' : '';
+          const cleanExistingReference = existingReference.startsWith('DELETED ') ? existingReference.substring(8) : existingReference;
+
+          // Compare references to find insertion point
+          if (newReference <= cleanExistingReference) {
+            insertIndex = k;
+            break;
+          }
+        }
+
+        // Create new row with same structure as current rows
+        const newRowForInsertion = new Array(currentHeaders.length).fill('');
+
+        // Copy data from new row to match current structure
+        for (let colIndex = 0; colIndex < currentHeaders.length; colIndex++) {
+          const headerName = currentHeaders[colIndex];
+          const newColIndex = newHeaders.findIndex((h) => h === headerName);
+
+          if (newColIndex >= 0 && newColIndex < newRow.length) {
+            newRowForInsertion[colIndex] = newRow[newColIndex];
+          }
+        }
+
+        // Set Merge Status to NEW if column exists
+        if (currentMergeStatusIndex >= 0) {
+          newRowForInsertion[currentMergeStatusIndex] = 'NEW';
+        }
+
+        updatedRows.splice(insertIndex, 0, newRowForInsertion);
+        newRowsCount++;
+      }
+
+      // Rebuild TSV content
+      const updatedContent = [currentHeaders.join('\t'), ...updatedRows.map((row) => row.join('\t'))].join('\n');
+
+      // Filter out unlinked words and normalize
+      let finalContent = filterUnlinkedWords(updatedContent);
+      finalContent = ensureUniqueIds(finalContent);
+      finalContent = normalizeTsvColumnCount(finalContent);
+
+      setTwlContent(finalContent);
+      saveTwlContent(finalContent);
+
+      // Show notification
+      let message = '';
+      if (updatedCount > 0 && newRowsCount > 0) {
+        message = `Updated ${updatedCount} row${updatedCount === 1 ? '' : 's'} and added ${newRowsCount} new row${newRowsCount === 1 ? '' : 's'}.`;
+      } else if (updatedCount > 0) {
+        message = `Updated ${updatedCount} row${updatedCount === 1 ? '' : 's'}.`;
+      } else if (newRowsCount > 0) {
+        message = `Added ${newRowsCount} new row${newRowsCount === 1 ? '' : 's'}.`;
+      } else {
+        message = 'No changes detected. All content is already up to date.';
+      }
+
+      setUpdateNotification({
+        open: true,
+        message: message,
+      });
+    } catch (err) {
+      setError(`Failed to update TWL: ${err.message}`);
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
    * Normalize Hebrew text for comparison by removing cantillation marks and extra spaces
    */
   const normalizeHebrewText = (text) => {
@@ -1310,7 +1531,7 @@ function App() {
 
               {existingTwlContent.trim() && !existingTwlValid && (
                 <Alert severity="error" sx={{ mt: 1 }}>
-                  Invalid TWL format. Must have exactly 6 columns, or 8-12 columns with proper headers (Reference, ID, Tags, OrigWords, Occurrence, TWLink, GLQuote, GLOccurrence,
+                  Invalid TWL format. Must have exactly 6 columns, or 7-11 columns with proper headers (Reference, ID, Tags, OrigWords, Occurrence, TWLink, GLQuote, GLOccurrence,
                   [Variant of], [Disambiguation], [Merge Status]).
                 </Alert>
               )}
@@ -1409,6 +1630,25 @@ function App() {
                       }}
                     >
                       Manage Unlinked Words
+                    </Button>
+
+                    <Button
+                      onClick={handleUpdateTwl}
+                      startIcon={<UpdateIcon />}
+                      variant="outlined"
+                      size="small"
+                      disabled={!selectedBook || loading}
+                      sx={{
+                        color: '#9c27b0',
+                        borderColor: '#9c27b0',
+                        textTransform: 'none',
+                        '&:hover': {
+                          backgroundColor: 'rgba(156, 39, 176, 0.04)',
+                          borderColor: '#9c27b0',
+                        },
+                      }}
+                    >
+                      Update
                     </Button>
 
                     <Button
@@ -1614,6 +1854,18 @@ function App() {
 
       {/* Unlinked Words Manager Dialog */}
       <UnlinkedWordsManager open={unlinkedWordsDialogOpen} onClose={handleUnlinkedWordsDialogClose} onUnlinkedWordsChange={handleUnlinkedWordsChange} dcsHost={dcsHost} />
+
+      {/* Update Notification Snackbar */}
+      <Snackbar
+        open={updateNotification.open}
+        autoHideDuration={6000}
+        onClose={() => setUpdateNotification({ open: false, message: '' })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setUpdateNotification({ open: false, message: '' })} severity="success" sx={{ width: '100%' }}>
+          {updateNotification.message}
+        </Alert>
+      </Snackbar>
     </ThemeProvider>
   );
 }
