@@ -1207,9 +1207,14 @@ function App() {
       const newGLOccurrenceIndex = newHeaders.findIndex((h) => h === 'GLOccurrence');
       const newDisambiguationIndex = newHeaders.findIndex((h) => h === 'Disambiguation');
 
-      // Track update statistics
+      // Track update statistics and details
       let updatedCount = 0;
       let newRowsCount = 0;
+      const updatedRowDetails = []; // Track which rows got disambiguation updates
+      const newRowDetails = []; // Track which rows are new
+
+      // Find column indices for current content (needed for extracting details)
+      const currentIDIndex = currentHeaders.findIndex((h) => h === 'ID');
 
       // Process updates
       const updatedRows = [...currentRows];
@@ -1224,6 +1229,7 @@ function App() {
         const currentGLQuote = currentGLQuoteIndex >= 0 ? currentRow[currentGLQuoteIndex] || '' : '';
         const currentGLOccurrence = currentGLOccurrenceIndex >= 0 ? currentRow[currentGLOccurrenceIndex] || '' : '';
         const currentDisambiguation = currentDisambiguationIndex >= 0 ? currentRow[currentDisambiguationIndex] || '' : '';
+        const currentID = currentIDIndex >= 0 ? currentRow[currentIDIndex] || '' : '';
 
         // Extract clean reference (remove DELETED prefix if present)
         const cleanReference = currentReference.startsWith('DELETED ') ? currentReference.substring(8) : currentReference;
@@ -1259,6 +1265,15 @@ function App() {
               if (currentDisambiguationIndex >= 0) {
                 updatedRows[i][currentDisambiguationIndex] = updatedDisambiguation;
                 updatedCount++;
+
+                // Track this update for detailed logging
+                updatedRowDetails.push({
+                  reference: cleanReference,
+                  id: currentID,
+                  oldDisambiguation: currentCleanDisambiguation,
+                  newDisambiguation: newDisambiguation,
+                  hasDoneStatus: hasCurrentDone,
+                });
               }
             }
 
@@ -1274,6 +1289,8 @@ function App() {
 
         const newRow = newRows[j];
         const newReference = newReferenceIndex >= 0 ? newRow[newReferenceIndex] || '' : '';
+        const newID = newHeaders.findIndex((h) => h === 'ID') >= 0 ? newRow[newHeaders.findIndex((h) => h === 'ID')] || '' : '';
+        const newGLQuote = newGLQuoteIndex >= 0 ? newRow[newGLQuoteIndex] || '' : '';
 
         // Find where to insert this new row (before other rows with same or later reference)
         let insertIndex = updatedRows.length; // Default to end
@@ -1310,6 +1327,13 @@ function App() {
 
         updatedRows.splice(insertIndex, 0, newRowForInsertion);
         newRowsCount++;
+
+        // Track this new row for detailed logging
+        newRowDetails.push({
+          reference: newReference,
+          id: newID,
+          glQuote: newGLQuote,
+        });
       }
 
       // Rebuild TSV content
@@ -1323,21 +1347,76 @@ function App() {
       setTwlContent(finalContent);
       saveTwlContent(finalContent);
 
-      // Show notification
+      // Log detailed update information to console
+      console.log('=== TWL Update Summary ===');
+      console.log(`Total updates: ${updatedCount} rows with disambiguation changes`);
+      console.log(`Total new rows: ${newRowsCount} rows added`);
+
+      if (updatedRowDetails.length > 0) {
+        console.log('\n--- Updated Rows (Disambiguation Changes) ---');
+        updatedRowDetails.forEach((update, index) => {
+          console.log(`${index + 1}. Reference: ${update.reference}, ID: ${update.id}`);
+          console.log(`   Old Disambiguation: "${update.oldDisambiguation}"`);
+          console.log(`   New Disambiguation: "${update.newDisambiguation}"`);
+          if (update.hasDoneStatus) {
+            console.log(`   Note: Preserved DONE status`);
+          }
+          console.log('');
+        });
+      }
+
+      if (newRowDetails.length > 0) {
+        console.log('\n--- New Rows Added ---');
+        newRowDetails.forEach((newRow, index) => {
+          console.log(`${index + 1}. Reference: ${newRow.reference}, ID: ${newRow.id}, GLQuote: "${newRow.glQuote}"`);
+        });
+      }
+
+      console.log('=== End TWL Update Summary ===\n');
+
+      // Create detailed notification message
       let message = '';
-      if (updatedCount > 0 && newRowsCount > 0) {
-        message = `Updated ${updatedCount} row${updatedCount === 1 ? '' : 's'} and added ${newRowsCount} new row${newRowsCount === 1 ? '' : 's'}.`;
-      } else if (updatedCount > 0) {
-        message = `Updated ${updatedCount} row${updatedCount === 1 ? '' : 's'}.`;
-      } else if (newRowsCount > 0) {
-        message = `Added ${newRowsCount} new row${newRowsCount === 1 ? '' : 's'}.`;
-      } else {
+      let detailedMessage = '';
+
+      if (updatedCount === 0 && newRowsCount === 0) {
         message = 'No changes detected. All content is already up to date.';
+        detailedMessage = message;
+      } else {
+        // Create summary line
+        if (updatedCount > 0 && newRowsCount > 0) {
+          message = `Updated ${updatedCount} row${updatedCount === 1 ? '' : 's'} and added ${newRowsCount} new row${newRowsCount === 1 ? '' : 's'}.`;
+        } else if (updatedCount > 0) {
+          message = `Updated ${updatedCount} row${updatedCount === 1 ? '' : 's'}.`;
+        } else if (newRowsCount > 0) {
+          message = `Added ${newRowsCount} new row${newRowsCount === 1 ? '' : 's'}.`;
+        }
+
+        // Create detailed breakdown
+        const detailLines = [message];
+
+        if (updatedRowDetails.length > 0) {
+          detailLines.push('');
+          detailLines.push('📝 Updated Disambiguations:');
+          updatedRowDetails.forEach((update) => {
+            const doneStatus = update.hasDoneStatus ? ' (DONE)' : '';
+            detailLines.push(`• ${update.reference} [${update.id}]: "${update.newDisambiguation}"${doneStatus}`);
+          });
+        }
+
+        if (newRowDetails.length > 0) {
+          detailLines.push('');
+          detailLines.push('✨ New Rows Added:');
+          newRowDetails.forEach((newRow) => {
+            detailLines.push(`• ${newRow.reference} [${newRow.id}]: "${newRow.glQuote}"`);
+          });
+        }
+
+        detailedMessage = detailLines.join('\n');
       }
 
       setUpdateNotification({
         open: true,
-        message: message,
+        message: detailedMessage,
       });
     } catch (err) {
       setError(`Failed to update TWL: ${err.message}`);
@@ -1867,11 +1946,21 @@ function App() {
       {/* Update Notification Snackbar */}
       <Snackbar
         open={updateNotification.open}
-        autoHideDuration={6000}
+        autoHideDuration={null} // Stay open until user closes
         onClose={() => setUpdateNotification({ open: false, message: '' })}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
-        <Alert onClose={() => setUpdateNotification({ open: false, message: '' })} severity="success" sx={{ width: '100%' }}>
+        <Alert
+          onClose={() => setUpdateNotification({ open: false, message: '' })}
+          severity="success"
+          sx={{
+            width: '100%',
+            whiteSpace: 'pre-line', // Preserve line breaks in the message
+            '& .MuiAlert-message': {
+              fontSize: '0.875rem',
+            },
+          }}
+        >
           {updateNotification.message}
         </Alert>
       </Snackbar>

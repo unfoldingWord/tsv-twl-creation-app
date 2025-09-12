@@ -32,7 +32,6 @@ export const useAppState = () => {
     return 'https://git.door43.org';
   };
   const [dcsHost, setDcsHost] = useState(getInitialDcsHost());
-  console.log('Initial DCS Host:', dcsHost);
   const [selectedBook, setSelectedBook] = useState(savedBook);
   const [selectedBranch, setSelectedBranch] = useState(savedBranch);
   const [branches, setBranches] = useState([]);
