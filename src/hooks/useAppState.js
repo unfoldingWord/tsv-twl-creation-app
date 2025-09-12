@@ -27,9 +27,9 @@ export const useAppState = () => {
       }
     }
     if (window.location.hostname === 'localhost' || window.location.hostname.includes('--')) {
-      return 'qa.door43.org';
+      return 'https://qa.door43.org';
     }
-    return 'git.door43.org';
+    return 'https://git.door43.org';
   };
   const [dcsHost, setDcsHost] = useState(getInitialDcsHost());
   const [selectedBook, setSelectedBook] = useState(savedBook);
