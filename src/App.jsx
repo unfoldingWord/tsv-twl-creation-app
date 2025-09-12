@@ -898,6 +898,7 @@ function App() {
         bookCode: selectedBook.value,
         tsvContent: generatedTwl,
         trySeparatorsAndOccurrences: true,
+        dcsUrl: dcsHost,
       });
 
       if (!convertResponse || typeof convertResponse !== 'object' || !convertResponse.output) {
@@ -917,6 +918,7 @@ function App() {
           bookCode: selectedBook.value,
           tsvContent: existingTwlContent.trim(),
           trySeparatorsAndOccurrences: true,
+          dcsUrl: dcsHost,
         });
 
         if (!addGlQuotesToExisingResults || typeof addGlQuotesToExisingResults !== 'object' || !addGlQuotesToExisingResults.output) {
@@ -941,6 +943,7 @@ function App() {
           bookCode: selectedBook.value,
           tsvContent: existingTwlContentWithEnglishOrigWords,
           trySeparatorsAndOccurrences: true,
+          dcsUrl: dcsHost,
         });
 
         console.log('Existing TWL with GLQuotes (after adding GLQuote columns):', convertGl2OlResults.output);
