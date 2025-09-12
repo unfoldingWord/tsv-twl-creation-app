@@ -4,7 +4,7 @@
 import { parseTsv, hasHeader, compareReferences } from '../utils/tsvUtils.js';
 import JSZip from 'jszip';
 
-export const fetchTwArchiveZip = async (dcsHost = 'git.door43.org') => {
+export const fetchTwArchiveZip = async (dcsHost = 'https://git.door43.org') => {
   const url = `${dcsHost}/unfoldingWord/en_tw/archive/master.zip`;
   const response = await fetch(url);
   if (!response.ok) {

@@ -5,7 +5,7 @@
 /**
  * Convert rc:// links to Door43 URLs
  */
-export const convertRcLinkToUrl = (rcLink, dcsHost = 'git.door43.org') => {
+export const convertRcLinkToUrl = (rcLink, dcsHost = 'https://git.door43.org') => {
   if (!rcLink || !rcLink.startsWith('rc://')) {
     return null;
   }
@@ -71,7 +71,7 @@ export const convertReferenceToUltUrl = (reference, book) => {
 /**
  * Convert TWLink to Translation Words URL for unlinked words manager
  */
-export const convertTwLinkToUrl = (twLink, dcsHost = 'git.door43.org') => {
+export const convertTwLinkToUrl = (twLink, dcsHost = 'https://git.door43.org') => {
   if (!twLink) {
     return null;
   }

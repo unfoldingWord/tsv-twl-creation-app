@@ -58,7 +58,7 @@ export const getCacheStats = () => {
 /**
  * Fetch USFM content for a specific book, translation, and branch
  */
-export const fetchUSFMContent = async (bookValue, translation = 'ult', dcsHost = 'git.door43.org', dcsToken) => {
+export const fetchUSFMContent = async (bookValue, translation = 'ult', dcsHost = 'https://git.door43.org', dcsToken) => {
   const bookData = BibleBookData[bookValue];
   if (!bookData) {
     throw new Error(`Book data not found for: ${bookValue}`);
@@ -94,7 +94,7 @@ export const fetchUSFMContent = async (bookValue, translation = 'ult', dcsHost =
 
   console.log(`Fetching USFM content for ${translation} ${bookValue} from server`);
   const response = await fetch(
-    `https://${dcsHost}/api/v1/repos/unfoldingWord/${repo}/contents/${usfmFileName}.usfm?ref=master`,
+    `${dcsHost}/api/v1/repos/unfoldingWord/${repo}/contents/${usfmFileName}.usfm?ref=master`,
     { headers }
   );
 
@@ -117,11 +117,11 @@ export const fetchUSFMContent = async (bookValue, translation = 'ult', dcsHost =
 /**
  * Fetch existing TWL content for a specific book and branch
  */
-export const fetchTWLContent = async (bookValue, branch = 'master', dcsHost = 'git.door43.org') => {
+export const fetchTWLContent = async (bookValue, branch = 'master', dcsHost = 'https://git.door43.org') => {
   const bookCode = bookValue.toUpperCase();
 
   const response = await fetch(
-    `https://${dcsHost}/api/v1/repos/unfoldingWord/en_twl/contents/twl_${bookCode}.tsv?ref=${branch}`
+    `${dcsHost}/api/v1/repos/unfoldingWord/en_twl/contents/twl_${bookCode}.tsv?ref=${branch}`
   );
 
   if (!response.ok) {

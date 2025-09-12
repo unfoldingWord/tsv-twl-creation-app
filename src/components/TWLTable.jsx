@@ -49,6 +49,7 @@ import { truncateContextAroundWord } from '../utils/tsvUtils.js';
 import { parseDisambiguationOptions, renderDisambiguationText } from '../utils/disambiguationUtils.js';
 import JSZip from 'jszip';
 import { marked } from 'marked';
+import { fetchTwArchiveZip } from '../services/twlService.js';
 
 const TWLTable = ({
   tableData,
@@ -93,9 +94,7 @@ const TWLTable = ({
   useEffect(() => {
     async function fetchTwArticleRcLinks() {
       try {
-        const response = await fetch(`https://${dcsHost}/unfoldingWord/en_tw/archive/master.zip`);
-        const blob = await response.blob();
-        const zip = await JSZip.loadAsync(blob);
+        const zip = await fetchTwArchiveZip(dcsHost);
 
         // Store the full zip for article content extraction
         setTwZip(zip);
