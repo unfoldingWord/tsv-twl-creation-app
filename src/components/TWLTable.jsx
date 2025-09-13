@@ -735,7 +735,7 @@ const TWLTable = ({
           startIcon={<FilterIcon />}
           size="small"
           endIcon={
-            (filters.hasDisambiguation !== null || filters.mergeStatus !== '' || filters.isInvalidRCLink !== null) && (
+            (filters.hasDisambiguation !== null || filters.mergeStatus !== '' || filters.isInvalidRCLink !== null || filters.isVariant !== null) && (
               <Chip size="small" label={Object.values(filters).filter((v) => v !== null && v !== '').length} color="primary" sx={{ ml: 1 }} />
             )
           }

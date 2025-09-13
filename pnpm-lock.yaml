@@ -48,8 +48,8 @@ importers:
         specifier: ^1.1.14
         version: 1.1.14(@babel/core@7.28.3)
       twl-generator:
-        specifier: ^1.4.4
-        version: 1.4.4(@babel/core@7.28.3)(react@18.3.1)
+        specifier: ^1.4.7
+        version: 1.4.7(@babel/core@7.28.3)(react@18.3.1)
       usfm-js:
         specifier: ^3.4.3
         version: 3.4.3
@@ -1718,6 +1718,12 @@ packages:
   emitter-component@1.1.2:
     resolution: {integrity: sha512-QdXO3nXOzZB4pAjM0n6ZE+R9/+kPpECA/XSELIcc54NeYVnBqIk+4DFiBgK+8QbV3mdvTG6nedl7dTYgO+5wDw==}
 
+  en-inflectors@1.0.12:
+    resolution: {integrity: sha512-G9wwJMx9DQQzwom8J8e8ErVpI6h/Z5BpYusJCE2Q/2NfgBNYCesyNaCOOskZAhOrw2nmR4D8nYAv4Xv/INIbzw==}
+
+  en-stemmer@1.0.3:
+    resolution: {integrity: sha512-sBeYsHLqZWACn/mTRLAMdYb/A53s55r4/nCB2UjKK96EBuRQ4t4GKl4V1pW/0hvzdncfYlZRT+JSIRxCtoYqbA==}
+
   error-ex@1.3.2:
     resolution: {integrity: sha512-7dFHNmqeFSEt2ZBsCriorKnn3Z2pj+fd9kmI6QoWw4//DL+icEBfc0U7qJCisqrTsKTjw4fNFy2pW9OqStD84g==}
 
@@ -2639,8 +2645,8 @@ packages:
   tsv-quote-converters@1.1.14:
     resolution: {integrity: sha512-fjgLfOsuHD9ZXisdPAKEquwzRwIuBDeG2YIcMA/GD9QdBP2CNfEr2u+ShaGz86NZMbEZXObQ5VSA7FTK+fiXMw==}
 
-  twl-generator@1.4.4:
-    resolution: {integrity: sha512-hN5P7eqpodLKhfXDyNaVpw0PVjMLOf8Plen5nlaVlwwvL+v7gajGxteg8WjRV5YSQsd+yiLYAAmcWGxQ1G0GxQ==}
+  twl-generator@1.4.7:
+    resolution: {integrity: sha512-aBhgH6MnXLDhdF8nPz4+WMKwlLAIqZiSEAkiCTanfB7+/AmfGyqf+OntlRsO/eSlZcdNrRajXAPTWqTeY+ON0w==}
     engines: {node: '>=18.0.0'}
     hasBin: true
     peerDependencies:
@@ -4963,6 +4969,12 @@ snapshots:
 
   emitter-component@1.1.2: {}
 
+  en-inflectors@1.0.12:
+    dependencies:
+      en-stemmer: 1.0.3
+
+  en-stemmer@1.0.3: {}
+
   error-ex@1.3.2:
     dependencies:
       is-arrayish: 0.2.1
@@ -6149,11 +6161,12 @@ snapshots:
       - debug
       - supports-color
 
-  twl-generator@1.4.4(@babel/core@7.28.3)(react@18.3.1):
+  twl-generator@1.4.7(@babel/core@7.28.3)(react@18.3.1):
     dependencies:
       compromise: 14.14.4
       csv-parse: 5.6.0
       csv-stringify: 6.6.0
+      en-inflectors: 1.0.12
       jszip: 3.10.1
       tsv-quote-converters: 1.1.14(@babel/core@7.28.3)
     optionalDependencies:
