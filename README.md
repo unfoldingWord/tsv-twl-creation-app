@@ -240,6 +240,7 @@ The search feature allows you to find content across multiple columns:
    - Start with **"Unmerged"** to review new/old content
    - Check **"Invalid RC Links"** for broken references
    - Review **"Disambiguation"** entries for multiple word options
+   - Check **"Variant of"** entries to verify any irregular forms of the article term used in the scripture
 8. **✏️ Make necessary edits**:
    - Delete incorrect rows (single row deletion)
    - Unlink problematic words (affects all instances globally)
