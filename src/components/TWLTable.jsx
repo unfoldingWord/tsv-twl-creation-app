@@ -760,7 +760,7 @@ const TWLTable = ({
                 size="small"
               />
             }
-            label={deletedRowsMode === 'hide' ? 'Show Deleted Rows' : deletedRowsMode === 'show' ? 'Show All Rows' : 'Show Only Deleted Rows'}
+            label={deletedRowsMode === 'hide' ? 'Show Deleted Rows' : deletedRowsMode === 'show' ? 'Show Rows w/ Deleted Rows' : 'Show Only Deleted Rows'}
           />
         )}
       </Box>
