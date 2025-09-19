@@ -281,11 +281,9 @@ const TWLTable = ({
     });
 
     // Apply deleted rows mode filter first
-    let filtered = [];
+    let filtered = allRows;
     if (deletedRowsMode === 'hide') {
       filtered = regularRows; // Only regular rows
-    } else if (deletedRowsMode === 'show') {
-      filtered = [...regularRows, ...deletedRows]; // Both types
     } else if (deletedRowsMode === 'only') {
       filtered = deletedRows; // Only deleted rows
     }
