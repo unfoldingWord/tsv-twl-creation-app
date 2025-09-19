@@ -741,25 +741,27 @@ const TWLTable = ({
           Filter
         </Button>
         {hasDeletedRows && (
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={deletedRowsMode === 'only'}
-                indeterminate={deletedRowsMode === 'show'}
-                onChange={(e) => {
-                  if (deletedRowsMode === 'hide') {
-                    setDeletedRowsMode('show');
-                  } else if (deletedRowsMode === 'show') {
-                    setDeletedRowsMode('only');
-                  } else {
-                    setDeletedRowsMode('hide');
-                  }
-                }}
-                size="small"
-              />
-            }
-            label={deletedRowsMode === 'hide' ? 'Show Deleted Rows' : deletedRowsMode === 'show' ? 'Show Rows w/ Deleted Rows' : 'Show Only Deleted Rows'}
-          />
+          <Tooltip title="Toggle: [&nbsp;] hide → [—] show all → [✓] only deleted">
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={deletedRowsMode === 'only'}
+                  indeterminate={deletedRowsMode === 'show'}
+                  onChange={(e) => {
+                    if (deletedRowsMode === 'hide') {
+                      setDeletedRowsMode('show');
+                    } else if (deletedRowsMode === 'show') {
+                      setDeletedRowsMode('only');
+                    } else {
+                      setDeletedRowsMode('hide');
+                    }
+                  }}
+                  size="small"
+                />
+              }
+              label="Show Deleted Rows"
+            />
+          </Tooltip>
         )}
       </Box>
 
