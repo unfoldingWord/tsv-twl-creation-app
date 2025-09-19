@@ -48,8 +48,8 @@ importers:
         specifier: ^1.1.14
         version: 1.1.14(@babel/core@7.28.3)
       twl-generator:
-        specifier: ^1.4.9
-        version: 1.4.9(@babel/core@7.28.3)(react@18.3.1)
+        specifier: ^1.4.10
+        version: 1.4.10(@babel/core@7.28.3)(react@18.3.1)
       usfm-js:
         specifier: ^3.4.3
         version: 3.4.3
@@ -2645,8 +2645,8 @@ packages:
   tsv-quote-converters@1.1.14:
     resolution: {integrity: sha512-fjgLfOsuHD9ZXisdPAKEquwzRwIuBDeG2YIcMA/GD9QdBP2CNfEr2u+ShaGz86NZMbEZXObQ5VSA7FTK+fiXMw==}
 
-  twl-generator@1.4.9:
-    resolution: {integrity: sha512-qgvbG5fLhv+g//jeOvo5ijjrKvTcAtbM9Ot3k8POhsIadXYvPNxHXg7fK4RH14fyMu1I7YYEIQrOaweDsh8x1A==}
+  twl-generator@1.4.10:
+    resolution: {integrity: sha512-mpAT9+3Sho8J/8XD3Rh5q+HtaqgmGqenf9tEJYZuG52d58GVidkvGwb3tWsy3hkDJb0RB4x0oh3MIKCroTa7zw==}
     engines: {node: '>=18.0.0'}
     hasBin: true
     peerDependencies:
@@ -6161,7 +6161,7 @@ snapshots:
       - debug
       - supports-color
 
-  twl-generator@1.4.9(@babel/core@7.28.3)(react@18.3.1):
+  twl-generator@1.4.10(@babel/core@7.28.3)(react@18.3.1):
     dependencies:
       compromise: 14.14.4
       csv-parse: 5.6.0
