@@ -741,7 +741,7 @@ const TWLTable = ({
           Filter
         </Button>
         {hasDeletedRows && (
-          <Tooltip title="Toggle: [&nbsp;] hide → [—] show all → [✓] only deleted">
+          <Tooltip title="Toggle: [ ] hide deleted → [—] show all → [✓] show only deleted">
             <FormControlLabel
               control={
                 <Checkbox
