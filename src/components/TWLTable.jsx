@@ -979,7 +979,7 @@ const TWLTable = ({
                         <TableCell
                           key={cellIndex}
                           sx={{
-                            ...(cell && !twRcLinks.includes(cell) ? { backgroundColor: '#ffe5e5' } : {}),
+                            ...(cell && twRcLinks.length > 0 && !twRcLinks.includes(cell) ? { backgroundColor: '#ffe5e5' } : {}),
                             '&:hover':
                               editingTWLink === rowIndex
                                 ? {}
