@@ -570,14 +570,28 @@ const TWLTable = ({
     const actualRowIndex = getActualRowIndex(paginatedRowIndex);
     if (actualRowIndex <= 0) return false;
 
-    // Find the first row of the current reference group
-    const currentReference = tableData.rows[actualRowIndex][referenceIndex];
-    let firstRowOfGroup = actualRowIndex;
-    while (firstRowOfGroup > 0 && tableData.rows[firstRowOfGroup - 1][referenceIndex] === currentReference) {
-      firstRowOfGroup--;
+    const currentRow = tableData.rows[actualRowIndex];
+    const currentDisplayRef = getDisplayReference(currentRow);
+    const currentIsDeleted = isRowDeleted(currentRow);
+
+    if (!currentIsDeleted) {
+      // Find the nearest non-deleted row above within the same display reference
+      let i = actualRowIndex - 1;
+      while (i >= 0 && getDisplayReference(tableData.rows[i]) === currentDisplayRef) {
+        if (!isRowDeleted(tableData.rows[i])) return true;
+        i--;
+      }
+      return false;
     }
 
-    // Can move up only if not the first row of its reference group
+    // For deleted rows, fall back to simple group-boundary logic
+    let firstRowOfGroup = actualRowIndex;
+    while (
+      firstRowOfGroup > 0 &&
+      getDisplayReference(tableData.rows[firstRowOfGroup - 1]) === currentDisplayRef
+    ) {
+      firstRowOfGroup--;
+    }
     return actualRowIndex > firstRowOfGroup;
   };
 
@@ -590,14 +604,28 @@ const TWLTable = ({
     const actualRowIndex = getActualRowIndex(paginatedRowIndex);
     if (actualRowIndex >= tableData.rows.length - 1) return false;
 
-    // Find the last row of the current reference group
-    const currentReference = tableData.rows[actualRowIndex][referenceIndex];
-    let lastRowOfGroup = actualRowIndex;
-    while (lastRowOfGroup < tableData.rows.length - 1 && tableData.rows[lastRowOfGroup + 1][referenceIndex] === currentReference) {
-      lastRowOfGroup++;
+    const currentRow = tableData.rows[actualRowIndex];
+    const currentDisplayRef = getDisplayReference(currentRow);
+    const currentIsDeleted = isRowDeleted(currentRow);
+
+    if (!currentIsDeleted) {
+      // Find the nearest non-deleted row below within the same display reference
+      let i = actualRowIndex + 1;
+      while (i < tableData.rows.length && getDisplayReference(tableData.rows[i]) === currentDisplayRef) {
+        if (!isRowDeleted(tableData.rows[i])) return true;
+        i++;
+      }
+      return false;
     }
 
-    // Can move down only if not the last row of its reference group
+    // For deleted rows, fall back to simple group-boundary logic
+    let lastRowOfGroup = actualRowIndex;
+    while (
+      lastRowOfGroup < tableData.rows.length - 1 &&
+      getDisplayReference(tableData.rows[lastRowOfGroup + 1]) === currentDisplayRef
+    ) {
+      lastRowOfGroup++;
+    }
     return actualRowIndex < lastRowOfGroup;
   };
 
@@ -606,11 +634,29 @@ const TWLTable = ({
 
     const actualRowIndex = getActualRowIndex(paginatedRowIndex);
 
-    // Create new row order
     const rows = [...tableData.rows];
+    const currentRow = rows[actualRowIndex];
+    const currentDisplayRef = getDisplayReference(currentRow);
+    const currentIsDeleted = isRowDeleted(currentRow);
+
+    let targetIndex = actualRowIndex - 1;
+    if (!currentIsDeleted) {
+      // Find nearest non-deleted row above within same display reference
+      targetIndex = -1;
+      for (let i = actualRowIndex - 1; i >= 0; i--) {
+        if (getDisplayReference(rows[i]) !== currentDisplayRef) break;
+        if (!isRowDeleted(rows[i])) {
+          targetIndex = i;
+          break;
+        }
+      }
+      if (targetIndex === -1) return; // Safety
+    }
+
+    // Swap current row with target index
     const temp = rows[actualRowIndex];
-    rows[actualRowIndex] = rows[actualRowIndex - 1];
-    rows[actualRowIndex - 1] = temp;
+    rows[actualRowIndex] = rows[targetIndex];
+    rows[targetIndex] = temp;
 
     // Use onEditTWLink with special parameters to signal row movement
     // The parent component should handle this special case
@@ -624,11 +670,29 @@ const TWLTable = ({
 
     const actualRowIndex = getActualRowIndex(paginatedRowIndex);
 
-    // Create new row order
     const rows = [...tableData.rows];
+    const currentRow = rows[actualRowIndex];
+    const currentDisplayRef = getDisplayReference(currentRow);
+    const currentIsDeleted = isRowDeleted(currentRow);
+
+    let targetIndex = actualRowIndex + 1;
+    if (!currentIsDeleted) {
+      // Find nearest non-deleted row below within same display reference
+      targetIndex = -1;
+      for (let i = actualRowIndex + 1; i < rows.length; i++) {
+        if (getDisplayReference(rows[i]) !== currentDisplayRef) break;
+        if (!isRowDeleted(rows[i])) {
+          targetIndex = i;
+          break;
+        }
+      }
+      if (targetIndex === -1) return; // Safety
+    }
+
+    // Swap current row with target index
     const temp = rows[actualRowIndex];
-    rows[actualRowIndex] = rows[actualRowIndex + 1];
-    rows[actualRowIndex + 1] = temp;
+    rows[actualRowIndex] = rows[targetIndex];
+    rows[targetIndex] = temp;
 
     // Use onEditTWLink with special parameters to signal row movement
     if (onEditTWLink) {
