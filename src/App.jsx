@@ -64,7 +64,7 @@ import ScriptureViewer from './components/ScriptureViewer.jsx';
 import packageInfo from '../package.json';
 import { fetchTWLContent } from './services/apiService.js';
 import { mergeExistingTwls } from './services/twlService.js';
-import { isValidTsvStructure, isValidExtendedTsvStructure, isExtendedTsvFormat, processTsvContent, ensureUniqueIds, normalizeTsvColumnCount } from './utils/tsvUtils.js';
+import { isValidTsvStructure, isValidExtendedTsvStructure, isExtendedTsvFormat, processTsvContent, ensureUniqueIds, normalizeTsvColumnCount, compareReferences } from './utils/tsvUtils.js';
 import { convertReferenceToTnUrl } from './utils/urlConverters.js';
 import { filterUnlinkedWords, removeUnlinkedWordByContent, getUnlinkedWords } from './utils/unlinkedWords.js';
 import { getUserIdentifier } from './utils/userUtils.js';
@@ -1300,8 +1300,8 @@ function App() {
           const existingReference = currentReferenceIndex >= 0 ? existingRow[currentReferenceIndex] || '' : '';
           const cleanExistingReference = existingReference.startsWith('DELETED ') ? existingReference.substring(8) : existingReference;
 
-          // Compare references to find insertion point
-          if (newReference <= cleanExistingReference) {
+          // Compare references numerically to find insertion point
+          if (compareReferences(newReference, cleanExistingReference) <= 0) {
             insertIndex = k;
             break;
           }

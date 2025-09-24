@@ -65,7 +65,10 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
 
   // Helper function to create a unique key for row matching
   const createRowKey = (row, referenceIndex, origWordsIndex, occurrenceIndex) => {
-    const reference = row[referenceIndex] || '';
+    let reference = row[referenceIndex] || '';
+    if (typeof reference === 'string' && reference.startsWith('DELETED ')) {
+      reference = reference.substring(8);
+    }
     const origWords = normalizeHebrew(row[origWordsIndex] || '');
     const occurrence = row[occurrenceIndex] || '';
     return `${reference}-${origWords}-${occurrence}`;
@@ -167,6 +170,8 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
 
         // Handle TWLink disambiguation if different
         const existingTWLink = existingRow[existingTWLinkIndex];
+        const existingDisambig = existingDisambiguationIndex >= 0 ? (existingRow[existingDisambiguationIndex] || '') : '';
+        const hasExistingDone = typeof existingDisambig === 'string' && existingDisambig.startsWith('DONE ');
 
         if (generatedTWLink !== existingTWLink && generatedDisambiguationIndex >= 0) {
           const existingArticle = getTWLinkEnding(existingTWLink);
@@ -179,7 +184,18 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
           if (!disambiguations.includes(existingArticle)) {
             disambiguations.unshift(existingArticle);
           }
-          updatedRow[generatedDisambiguationIndex] = `(${disambiguations.join(', ')})`;
+          let newDisambig = `(${disambiguations.join(', ')})`;
+          if (hasExistingDone) {
+            newDisambig = `DONE ${newDisambig}`;
+          }
+          updatedRow[generatedDisambiguationIndex] = newDisambig;
+        } else if (generatedDisambiguationIndex >= 0) {
+          // TWLink unchanged; keep generated disambiguation content but preserve DONE status if present
+          let newDisambig = updatedRow[generatedDisambiguationIndex] || generatedRow[generatedDisambiguationIndex] || '';
+          if (hasExistingDone && !newDisambig.startsWith('DONE ')) {
+            newDisambig = `DONE ${newDisambig}`;
+          }
+          updatedRow[generatedDisambiguationIndex] = newDisambig;
         }
 
         // Add "MERGED" to Merge Status column

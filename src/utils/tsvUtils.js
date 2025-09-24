@@ -177,11 +177,19 @@ export const hasHeader = (content) => {
  * Compare two Bible references numerically (e.g., "1:2" vs "1:10")
  */
 export const compareReferences = (ref1, ref2) => {
+  const normalizeRef = (ref) => {
+    if (!ref || typeof ref !== 'string') return '';
+    let r = ref.trim();
+    if (r.startsWith('DELETED ')) r = r.substring(8);
+    return r;
+  };
+
   const parseRef = (ref) => {
-    const parts = ref.split(':');
+    const clean = normalizeRef(ref);
+    const parts = clean.split(':');
     return {
-      chapter: parseInt(parts[0]) || 0,
-      verse: parseInt(parts[1]) || 0,
+      chapter: parseInt(parts[0], 10) || 0,
+      verse: parseInt(parts[1], 10) || 0,
     };
   };
 
