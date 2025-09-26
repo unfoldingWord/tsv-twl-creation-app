@@ -27,6 +27,7 @@ TWL_AWS_REGION=us-east-1
 TWL_DYNAMODB_TABLE_NAME=twl-unlinked-words
 DCS_TOKEN=your_dcs_personal_access_token_here
 DCS_HOST=git.door43.org
+TWL_DYNAMODB_DELETED_TABLE_NAME=twl-deleted-rows
 ```
 
 ⚠️ **Important**: Replace the placeholder values with your actual AWS credentials from the IAM user you created.

@@ -67,6 +67,8 @@ import { mergeExistingTwls } from './services/twlService.js';
 import { isValidTsvStructure, isValidExtendedTsvStructure, isExtendedTsvFormat, processTsvContent, ensureUniqueIds, normalizeTsvColumnCount, compareReferences } from './utils/tsvUtils.js';
 import { convertReferenceToTnUrl } from './utils/urlConverters.js';
 import { filterUnlinkedWords, removeUnlinkedWordByContent, getUnlinkedWords } from './utils/unlinkedWords.js';
+import { filterDeletedRowsWithData } from './utils/deletedRows.js';
+import { addDeletedRowToServer, removeDeletedRowFromServer, getDeletedRowsFromServer } from './services/deletedRowsApi.js';
 import { getUserIdentifier } from './utils/userUtils.js';
 import { useUnlinkedWords } from './hooks/useUnlinkedWords.js';
 
@@ -349,7 +351,7 @@ function App() {
   /**
    * Handle row deletion/restoration from table (soft delete)
    */
-  const handleDeleteRow = (rowIndex, newReference, action) => {
+  const handleDeleteRow = async (rowIndex, newReference, action) => {
     if (!twlContent) return;
 
     // Create backup before making changes
@@ -363,9 +365,31 @@ function App() {
     if (newReference !== undefined && action) {
       const headers = lines[0].split('\t');
       const referenceIndex = headers.findIndex((header) => header === 'Reference');
+      const origWordsIndex = headers.findIndex((header) => header === 'OrigWords');
+      const occurrenceIndex = headers.findIndex((header) => header === 'Occurrence');
 
       if (referenceIndex >= 0 && lines[rowIndex + 1]) {
         const rowData = lines[rowIndex + 1].split('\t');
+
+        // Persist server-side marker before updating local content
+        try {
+          if (selectedBook && origWordsIndex !== -1 && occurrenceIndex !== -1) {
+            const book = selectedBook.value;
+            const referenceDisplay = newReference.startsWith('DELETED ') ? newReference.substring(8) : newReference;
+            const origWords = rowData[origWordsIndex] || '';
+            const occurrence = rowData[occurrenceIndex] || '';
+
+            if (action === 'delete') {
+              await addDeletedRowToServer(book, referenceDisplay, origWords, occurrence);
+            } else if (action === 'restore') {
+              await removeDeletedRowFromServer(book, referenceDisplay, origWords, occurrence);
+            }
+          }
+        } catch (err) {
+          console.warn('Warning: failed to sync deleted row marker:', err?.message || err);
+        }
+
+        // Update local row
         rowData[referenceIndex] = newReference;
         lines[rowIndex + 1] = rowData.join('\t');
 
@@ -857,7 +881,14 @@ function App() {
 
       // Filter out unlinked words using local storage data
       twlToLoad = filterUnlinkedWords(twlToLoad);
-      console.log('Loaded TWL (after filtering unlinked words):', twlToLoad);
+      // Apply server-side deleted row markers for this book
+      try {
+        const { items: deletedItems } = await getDeletedRowsFromServer(selectedBook.value);
+        twlToLoad = filterDeletedRowsWithData(twlToLoad, deletedItems);
+      } catch (e) {
+        console.warn('Could not load deleted row markers:', e?.message || e);
+      }
+      console.log('Loaded TWL (after filtering unlinked + deleted):', twlToLoad);
 
       setTwlContent(twlToLoad);
       // Save to localStorage after loading (pass content directly)
@@ -974,6 +1005,13 @@ function App() {
 
       // Filter out unlinked words using local storage data
       generatedTwl = filterUnlinkedWords(generatedTwl);
+      // Apply server-side deleted row markers for this book
+      try {
+        const { items: deletedItems } = await getDeletedRowsFromServer(selectedBook.value);
+        generatedTwl = filterDeletedRowsWithData(generatedTwl, deletedItems);
+      } catch (e) {
+        console.warn('Could not load deleted row markers:', e?.message || e);
+      }
 
       setTwlContent(generatedTwl);
       // Save to localStorage after initial generation (pass content directly)
