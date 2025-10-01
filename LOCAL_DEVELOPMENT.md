@@ -102,6 +102,42 @@ curl -X POST http://localhost:8888/.netlify/functions/add-unlinked-word \
 curl "http://localhost:8888/.netlify/functions/get-unlinked-words?userIdentifier=test-user"
 ```
 
+#### Test Deleted Rows: Add, Get, Remove
+
+Add a deleted row marker (soft delete):
+
+```bash
+curl -X POST http://localhost:8888/.netlify/functions/add-deleted-row \
+  -H "Content-Type: application/json" \
+  -d '{
+    "book": "rut",
+    "reference": "1:1",
+    "origWords": "מִ⁠בֵּ֧ית לֶ֣חֶם",
+    "occurrence": "1",
+    "userIdentifier": "test-user"
+  }'
+```
+
+Fetch deleted markers for a book:
+
+```bash
+curl "http://localhost:8888/.netlify/functions/get-deleted-rows?book=rut"
+```
+
+Remove a deleted row marker (restore):
+
+```bash
+curl -X POST http://localhost:8888/.netlify/functions/remove-deleted-row \
+  -H "Content-Type: application/json" \
+  -d '{
+    "book": "rut",
+    "reference": "1:1",
+    "origWords": "מִ⁠בֵּ֧ית לֶ֣חֶם",
+    "occurrence": "1",
+    "userIdentifier": "test-user"
+  }'
+```
+
 ### 3. Test in the App
 
 1. **Open the app** (usually http://localhost:5173)
