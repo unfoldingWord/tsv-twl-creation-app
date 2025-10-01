@@ -106,14 +106,23 @@ The search feature allows you to find content across multiple columns:
 - **📊 Merge Status Filter**:
   - **✅ Merged**: Show rows where existing content was merged with generated content
   - **❌ Unmerged**: Show rows that are either from existing content only or newly generated
-- **🔗 Invalid RC Links**: Show entries with problematic Translation Word links
+- **�️ Deleted Rows Filter**:
+  - **👁️ Show Deleted Rows**: Show all rows including deleted ones
+  - **🎯 Only Show Deleted Rows**: Show only deleted rows
+- **�🔗 Invalid RC Links**: Show entries with problematic Translation Word links
 
 #### 🎯 Row Operations
 
-**🗑️ 1. Delete Single Row**
-- Click the trash icon (🗑️) to remove just that specific row
-- This only affects the clicked row
-- Use the **↶ Undo** button to reverse this action
+**🗑️ 1. Delete Single Row (Smart Persistent Deletion)**
+- Click the trash icon (🗑️) to mark a row as deleted
+- **🧠 Smart Memory**: Your deletions are remembered across sessions and future generations
+- **🔄 Persistent Behavior**: 
+  - When you **delete** a row, it will be automatically filtered out in all future TWL generations for this book
+  - When you **restore** (undelete) a row, it will always appear in future generations
+  - Deleted rows show with a "DELETED" prefix and are visually grayed out
+- **🚫 Protection**: MERGED rows (existing TSV content) cannot be deleted to preserve existing work
+- **↶ Restore**: Click the delete icon again on a DELETED row to restore it
+- **⚠️ Note**: Only affects NEW and OLD rows; MERGED rows are protected from deletion
 
 **🔗 2. Unlink Word**
 - Click the unlink icon (🔗) to remove all instances of that word
@@ -138,6 +147,31 @@ The search feature allows you to find content across multiple columns:
 - **👆 Hover over TWLink or Disambiguation links**: See a tooltip with the article's title/terms
 - **🖱️ Click TWLink**: Opens the full Translation Word article in a modal popup
 - **☁️ View on DCS**: From the article modal, click "View on DCS" to open the article on the DCS website
+
+### 🧠 Smart Deletion System
+
+The app features an advanced deletion system that remembers your choices across sessions and generations:
+
+#### 🔄 How It Works:
+1. **Delete a Row**: Marks the row with "DELETED" prefix and stores this decision in the cloud
+2. **Future Generations**: Deleted rows are automatically filtered out when generating new TWLs
+3. **Restore Feature**: Click delete again on a DELETED row to restore it permanently
+4. **Cloud Sync**: Your deletion preferences sync across devices and persist forever
+
+#### 🛡️ Protection Rules:
+- **✅ Can Delete**: NEW rows (newly generated content)
+- **✅ Can Delete**: OLD rows (existing content that wasn't merged)
+- **🚫 Cannot Delete**: MERGED rows (existing TSV content that was successfully merged)
+
+#### 💡 Use Cases:
+- **Remove Errors**: Delete incorrectly generated entries that you never want to see again
+- **Clean Up**: Remove unwanted translation word associations permanently
+- **Quality Control**: Hide problematic entries while preserving good existing content
+
+#### 🎯 Visual Indicators:
+- **Regular Rows**: Normal appearance
+- **DELETED Rows**: Grayed out with red text and "DELETED" prefix in Reference column
+- **MERGED Rows**: Cannot be deleted (delete button disabled for these rows)
 
 **⬆️ 6. Move Row Up/Down**
 - **⬆️ Up Arrow**: Move row up within the same reference (verse)

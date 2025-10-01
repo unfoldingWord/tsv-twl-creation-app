@@ -68,13 +68,13 @@ const TWLTable = ({
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [searchTerm, setSearchTerm] = useState('');
-  const [deletedRowsMode, setDeletedRowsMode] = useState('hide'); // 'hide' | 'show' | 'only'
   const [filterAnchorEl, setFilterAnchorEl] = useState(null);
   const [filters, setFilters] = useState({
     hasDisambiguation: null, // null = show all, 'need' = needs disambiguation, 'done' = been disambiguated, false = no disambiguation
     mergeStatus: '', // '' = show all, 'merged' = show MERGED rows, 'unmerged' = show OLD/NEW rows
     isInvalidRCLink: null, // null = show all, true = is invalid
     isVariant: null, // null = show all, true = has variant info, false = no variant info
+    deletedRows: null, // null = hide deleted, 'show' = show all, 'only' = only deleted
   });
 
   // State for tracking which TWLink field is being edited
@@ -280,13 +280,14 @@ const TWLTable = ({
       }
     });
 
-    // Apply deleted rows mode filter first
+    // Apply deleted rows filter first
     let filtered = allRows;
-    if (deletedRowsMode === 'hide') {
-      filtered = regularRows; // Only regular rows
-    } else if (deletedRowsMode === 'only') {
+    if (filters.deletedRows === null) {
+      filtered = regularRows; // Hide deleted rows (default)
+    } else if (filters.deletedRows === 'only') {
       filtered = deletedRows; // Only deleted rows
     }
+    // filters.deletedRows === 'show' means show all rows (no filtering)
 
     // Apply search filter
     if (searchTerm.trim()) {
@@ -408,7 +409,6 @@ const TWLTable = ({
   }, [
     tableData.rows,
     searchTerm,
-    deletedRowsMode,
     filters,
     referenceIndex,
     origWordsIndex,
@@ -473,6 +473,7 @@ const TWLTable = ({
       mergeStatus: '',
       isInvalidRCLink: null,
       isVariant: null,
+      deletedRows: null,
     });
     setPage(0);
   };
@@ -586,10 +587,7 @@ const TWLTable = ({
 
     // For deleted rows, fall back to simple group-boundary logic
     let firstRowOfGroup = actualRowIndex;
-    while (
-      firstRowOfGroup > 0 &&
-      getDisplayReference(tableData.rows[firstRowOfGroup - 1]) === currentDisplayRef
-    ) {
+    while (firstRowOfGroup > 0 && getDisplayReference(tableData.rows[firstRowOfGroup - 1]) === currentDisplayRef) {
       firstRowOfGroup--;
     }
     return actualRowIndex > firstRowOfGroup;
@@ -620,10 +618,7 @@ const TWLTable = ({
 
     // For deleted rows, fall back to simple group-boundary logic
     let lastRowOfGroup = actualRowIndex;
-    while (
-      lastRowOfGroup < tableData.rows.length - 1 &&
-      getDisplayReference(tableData.rows[lastRowOfGroup + 1]) === currentDisplayRef
-    ) {
+    while (lastRowOfGroup < tableData.rows.length - 1 && getDisplayReference(tableData.rows[lastRowOfGroup + 1]) === currentDisplayRef) {
       lastRowOfGroup++;
     }
     return actualRowIndex < lastRowOfGroup;
@@ -797,36 +792,15 @@ const TWLTable = ({
           startIcon={<FilterIcon />}
           size="small"
           endIcon={
-            (filters.hasDisambiguation !== null || filters.mergeStatus !== '' || filters.isInvalidRCLink !== null || filters.isVariant !== null) && (
-              <Chip size="small" label={Object.values(filters).filter((v) => v !== null && v !== '').length} color="primary" sx={{ ml: 1 }} />
-            )
+            (filters.hasDisambiguation !== null ||
+              filters.mergeStatus !== '' ||
+              filters.isInvalidRCLink !== null ||
+              filters.isVariant !== null ||
+              filters.deletedRows !== null) && <Chip size="small" label={Object.values(filters).filter((v) => v !== null && v !== '').length} color="primary" sx={{ ml: 1 }} />
           }
         >
           Filter
         </Button>
-        {hasDeletedRows && (
-          <Tooltip title="Toggle: [ ] hide deleted → [—] show all → [✓] show only deleted">
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={deletedRowsMode === 'only'}
-                  indeterminate={deletedRowsMode === 'show'}
-                  onChange={(e) => {
-                    if (deletedRowsMode === 'hide') {
-                      setDeletedRowsMode('show');
-                    } else if (deletedRowsMode === 'show') {
-                      setDeletedRowsMode('only');
-                    } else {
-                      setDeletedRowsMode('hide');
-                    }
-                  }}
-                  size="small"
-                />
-              }
-              label="Show Deleted Rows"
-            />
-          </Tooltip>
-        )}
       </Box>
 
       {/* Filter Menu */}
@@ -917,6 +891,41 @@ const TWLTable = ({
                 />
               </>
             )}
+
+            {/* Always show Deleted Rows filter section */}
+            <Typography variant="body2" sx={{ mt: 2, mb: 1, fontWeight: 'bold' }}>
+              Deleted Rows:
+            </Typography>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={filters.deletedRows === 'show'}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      handleFilterChange('deletedRows', 'show');
+                    } else {
+                      handleFilterChange('deletedRows', null);
+                    }
+                  }}
+                />
+              }
+              label="Show Deleted Rows"
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={filters.deletedRows === 'only'}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      handleFilterChange('deletedRows', 'only');
+                    } else {
+                      handleFilterChange('deletedRows', null);
+                    }
+                  }}
+                />
+              }
+              label="Only Show Deleted Rows"
+            />
           </FormGroup>
 
           <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
@@ -944,18 +953,18 @@ const TWLTable = ({
           sx={{ '& .MuiTablePagination-toolbar': { minHeight: '52px' } }}
         />
         <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'right' }}>
-          {(searchTerm.trim() || Object.values(filters).some((v) => v !== null && v !== '') || deletedRowsMode !== 'hide') &&
+          {(searchTerm.trim() || Object.values(filters).some((v) => v !== null && v !== '')) &&
             (() => {
               const hasFiltering = searchTerm.trim() || Object.values(filters).some((v) => v !== null && v !== '');
 
-              if (deletedRowsMode === 'only') {
+              if (filters.deletedRows === 'only') {
                 return hasFiltering
                   ? `Matching ${filteredData.filteredDeletedRows} deleted rows`
                   : `Showing ${filteredData.totalDeletedRows} deleted row${filteredData.totalDeletedRows === 1 ? '' : 's'}`;
-              } else if (deletedRowsMode === 'hide') {
+              } else if (filters.deletedRows === null) {
                 return hasFiltering ? `Matching ${filteredData.filteredRegularRows} of ${filteredData.totalRegularRows} rows` : null;
               } else {
-                // deletedRowsMode === 'show'
+                // filters.deletedRows === 'show'
                 if (hasFiltering) {
                   if (filteredData.filteredDeletedRows > 0) {
                     return `Matching ${filteredData.filteredRegularRows} of ${filteredData.totalRegularRows} rows (and matching ${filteredData.filteredDeletedRows} deleted row${
@@ -1353,20 +1362,37 @@ const TWLTable = ({
                       </IconButton>
                     </Tooltip>
                     {/* Edit icon removed — click the TWLink cell to edit */}
-                    <Tooltip title={isDeleted ? 'Restore this row' : 'Delete just this one TWL'}>
-                      <IconButton
-                        onClick={() => handleSoftDelete(getActualRowIndex(rowIndex))}
-                        size="small"
-                        disabled={editingTWLink !== null}
-                        sx={{
-                          color: isDeleted ? '#2e7d32' : '#d32f2f',
-                          '&:hover': { backgroundColor: isDeleted ? 'rgba(46, 125, 50, 0.04)' : 'rgba(211, 47, 47, 0.04)' },
-                          mr: 0.5,
-                        }}
-                      >
-                        {isDeleted ? <RestoreIcon fontSize="small" /> : <DeleteIcon fontSize="small" />}
-                      </IconButton>
-                    </Tooltip>
+                    {(() => {
+                      const currentRow = tableData.rows[getActualRowIndex(rowIndex)];
+                      const mergeStatus = mergeStatusIndex >= 0 ? currentRow[mergeStatusIndex] : '';
+                      const isMerged = mergeStatus === 'MERGED';
+
+                      let tooltipTitle;
+                      if (isDeleted) {
+                        tooltipTitle = 'Restore this row';
+                      } else {
+                        tooltipTitle = 'Delete just this one TWL';
+                      }
+
+                      return (
+                        <Tooltip title={tooltipTitle}>
+                          <span>
+                            <IconButton
+                              onClick={() => handleSoftDelete(getActualRowIndex(rowIndex))}
+                              size="small"
+                              disabled={editingTWLink !== null}
+                              sx={{
+                                color: isDeleted ? '#2e7d32' : '#d32f2f',
+                                '&:hover': { backgroundColor: isDeleted ? 'rgba(46, 125, 50, 0.04)' : 'rgba(211, 47, 47, 0.04)' },
+                                mr: 0.5,
+                              }}
+                            >
+                              {isDeleted ? <RestoreIcon fontSize="small" /> : <DeleteIcon fontSize="small" />}
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      );
+                    })()}
                     <Tooltip title="Duplicate this row">
                       <IconButton
                         onClick={() => handleDuplicateRow(getActualRowIndex(rowIndex))}

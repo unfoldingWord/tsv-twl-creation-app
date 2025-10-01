@@ -1,6 +1,6 @@
 # DynamoDB + Netlify Functions Setup Guide
 
-This guide will help you set up server-side storage for unlinked words using AWS DynamoDB and Netlify Functions.
+This guide will help you set up server-side storage for Unlinked Words and Deleted Row Markers using AWS DynamoDB and Netlify Functions.
 
 ## Prerequisites
 
@@ -8,18 +8,27 @@ This guide will help you set up server-side storage for unlinked words using AWS
 - Netlify account with your app deployed
 - Basic familiarity with AWS Console
 
-## Step 1: Create DynamoDB Table
+## Step 1: Create DynamoDB Tables
 
 1. **Go to AWS Console** → DynamoDB → Tables → "Create table"
 
-2. **Table Configuration:**
+2. **Table A — Unlinked Words**
 
-   - **Table name**: `twl-unlinked-words`
-   - **Partition key**: `origWords` (String)
-   - **Sort key**: `twLink` (String)
-   - **Table settings**: Use default settings (On-demand billing recommended)
+   - Table name: `twl-unlinked-words`
+   - Partition key: `origWords` (String)
+   - Sort key: `twLink` (String)
+   - Table settings: Use default settings (On-demand billing recommended)
 
 3. **Create the table** and wait for it to be active
+
+4. **Table B — Deleted Row Markers**
+
+   - Table name: `twl-deleted-rows`
+   - Partition key: `book` (String)
+   - Sort key: `sortKey` (String) — format: `${reference}|${normalizedOrigWords}|${occurrence}`
+   - Table settings: Use default settings (On-demand billing recommended)
+
+5. **Create the table** and wait for it to be active
 
 ## Step 2: Create IAM User for Netlify
 
@@ -34,8 +43,18 @@ This guide will help you set up server-side storage for unlinked words using AWS
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:Scan"],
-      "Resource": "arn:aws:dynamodb:*:*:table/twl-unlinked-words"
+      "Action": [
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:Scan"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:*:*:table/twl-unlinked-words",
+        "arn:aws:dynamodb:*:*:table/twl-deleted-rows"
+      ]
     }
   ]
 }
@@ -51,6 +70,7 @@ This guide will help you set up server-side storage for unlinked words using AWS
    - `TWL_AWS_SECRET_ACCESS_KEY` = (your IAM user secret key)
    - `TWL_AWS_REGION` = (your DynamoDB region, e.g., `us-east-1`)
    - `TWL_DYNAMODB_TABLE_NAME` = `twl-unlinked-words`
+   - `TWL_DYNAMODB_DELETED_TABLE_NAME` = `twl-deleted-rows`
 
 ## Step 4: Deploy to Netlify
 
@@ -81,6 +101,12 @@ Your app will now have these endpoints available:
 - `/.netlify/functions/remove-unlinked-word` - Mark an unlinked word as removed
 - `/.netlify/functions/get-unlinked-words` - Get all unlinked words for a user
 
+Deleted rows API:
+
+- `/.netlify/functions/add-deleted-row` - Add a deleted row marker
+- `/.netlify/functions/remove-deleted-row` - Remove a deleted row marker (undelete)
+- `/.netlify/functions/get-deleted-rows?book=<bookId>` - Get all deleted markers for a book
+
 ## Troubleshooting
 
 ### Common Issues:
@@ -106,7 +132,7 @@ Your app will now have these endpoints available:
 
 ## Data Schema
 
-### DynamoDB Table Structure:
+### DynamoDB Table Structures:
 
 ```json
 {
@@ -121,6 +147,21 @@ Your app will now have these endpoints available:
   "lastModified": "2025-08-15T20:30:00.000Z",
   "removed": false,
   "removedBy": "user-1234567890-abc123"
+}
+```
+
+Deleted Rows table (`twl-deleted-rows`):
+
+```json
+{
+  "book": "rut", // Partition key
+  "sortKey": "1:1|מבית לחם|1", // Sort key: `${reference}|${normalizedOrigWords}|${occurrence}`
+  "reference": "1:1",
+  "origWords": "מִ⁠בֵּ֧ית לֶ֣חֶם", // Original
+  "normalizedOrigWords": "מבית לחם",
+  "occurrence": "1",
+  "userIdentifier": "user-123456",
+  "dateAdded": "2025-08-15T20:30:00.000Z"
 }
 ```
 

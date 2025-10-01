@@ -27,6 +27,7 @@ TWL_AWS_REGION=us-east-1
 TWL_DYNAMODB_TABLE_NAME=twl-unlinked-words
 DCS_TOKEN=your_dcs_personal_access_token_here
 DCS_HOST=git.door43.org
+TWL_DYNAMODB_DELETED_TABLE_NAME=twl-deleted-rows
 ```
 
 ⚠️ **Important**: Replace the placeholder values with your actual AWS credentials from the IAM user you created.
@@ -99,6 +100,42 @@ curl -X POST http://localhost:8888/.netlify/functions/add-unlinked-word \
 
 ```bash
 curl "http://localhost:8888/.netlify/functions/get-unlinked-words?userIdentifier=test-user"
+```
+
+#### Test Deleted Rows: Add, Get, Remove
+
+Add a deleted row marker (soft delete):
+
+```bash
+curl -X POST http://localhost:8888/.netlify/functions/add-deleted-row \
+  -H "Content-Type: application/json" \
+  -d '{
+    "book": "rut",
+    "reference": "1:1",
+    "origWords": "מִ⁠בֵּ֧ית לֶ֣חֶם",
+    "occurrence": "1",
+    "userIdentifier": "test-user"
+  }'
+```
+
+Fetch deleted markers for a book:
+
+```bash
+curl "http://localhost:8888/.netlify/functions/get-deleted-rows?book=rut"
+```
+
+Remove a deleted row marker (restore):
+
+```bash
+curl -X POST http://localhost:8888/.netlify/functions/remove-deleted-row \
+  -H "Content-Type: application/json" \
+  -d '{
+    "book": "rut",
+    "reference": "1:1",
+    "origWords": "מִ⁠בֵּ֧ית לֶ֣חֶם",
+    "occurrence": "1",
+    "userIdentifier": "test-user"
+  }'
 ```
 
 ### 3. Test in the App

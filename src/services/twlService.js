@@ -1,14 +1,15 @@
-/**
- * TWL (Translation Word List) processing and merging logic
- */
-import { parseTsv, hasHeader, compareReferences } from '../utils/tsvUtils.js';
 import JSZip from 'jszip';
+import { parseTsv, hasHeader, compareReferences } from '../utils/tsvUtils.js';
+import { normalizeHebrewText } from '../utils/unlinkedWords.js';
 
+/**
+ * Fetch TW archive from DCS
+ */
 export const fetchTwArchiveZip = async (dcsHost = 'https://git.door43.org') => {
-  const url = `${dcsHost}/unfoldingWord/en_tw/archive/master.zip`;
+  const url = `${dcsHost}/api/v1/repos/unfoldingWord/en_tw/archive/master.zip`;
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to fetch TW archive: ${response.statusText}`);
+    throw new Error(`HTTP error! status: ${response.status}`);
   }
   const arrayBuffer = await response.arrayBuffer();
   const zip = await JSZip.loadAsync(arrayBuffer);
@@ -17,7 +18,7 @@ export const fetchTwArchiveZip = async (dcsHost = 'https://git.door43.org') => {
 
 /**
  * Merge existing TWL content with newly generated TWL content
- * Uses a pointer-based algorithm to maintain proper order
+ * ALGORITHM: Use imported rows as anchor, process generated rows to either merge or insert as NEW
  */
 export const mergeExistingTwls = async (generatedContent, existingContent, dcsHost = 'https://git.door43.org') => {
   if (!existingContent.trim()) {
@@ -34,279 +35,157 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
   const existing = parseTsv(existingContent, existingHasHeader);
   const existingRows = existing.rows;
 
-  // Add "Merge Status" column to headers if there are existing rows
-  const finalHeaders = existingRows.length > 0 ? [...generatedHeaders, 'Merge Status'] : generatedHeaders;
+  // Create final headers: existing headers (first 6) + generated headers (from 6 onwards) + "Merge Status"
+  const finalHeaders = [...existingRows.length > 0 ? generatedHeaders.slice(0, 6) : generatedHeaders, ...generatedHeaders.slice(6), 'Merge Status'];
 
-  // Find column indices for generated content
-  const generatedReferenceIndex = generatedHeaders?.findIndex((h) => h === 'Reference') || 0;
-  const generatedOrigWordsIndex = generatedHeaders?.findIndex((h) => h === 'OrigWords') || 3;
-  const generatedOccurrenceIndex = generatedHeaders?.findIndex((h) => h === 'Occurrence') || 4;
-  const generatedTWLinkIndex = generatedHeaders?.findIndex((h) => h === 'TWLink') || 5;
-  const generatedDisambiguationIndex = generatedHeaders?.findIndex((h) => h === 'Disambiguation') || 8;
+  // Find column indices
+  const referenceIndex = 0;
+  const origWordsIndex = 3;
+  const occurrenceIndex = 4;
+  const twLinkIndex = 5;
+  const disambiguationIndex = generatedHeaders.findIndex(h => h === 'Disambiguation');
 
-  console.log('Generated headers:', generatedHeaders);
-  console.log('Generated indices:', { origWords: generatedOrigWordsIndex, occurrence: generatedOccurrenceIndex, twLink: generatedTWLinkIndex, disambiguation: generatedDisambiguationIndex });
+  console.log('Starting merge process...');
+  console.log(`Generated rows: ${generatedRows.length}, Imported rows: ${existingRows.length}`);
 
-  // Find column indices for existing content (may be different if structure differs)
-  const existingReferenceIndex = existing?.headers?.findIndex((h) => h === 'Reference') || 0;
-  const existingOrigWordsIndex = existing?.headers?.findIndex((h) => h === 'OrigWords') || 3;
-  const existingOccurrenceIndex = existing?.headers?.findIndex((h) => h === 'Occurrence') || 4;
-  const existingTWLinkIndex = existing?.headers?.findIndex((h) => h === 'TWLink') || 5;
-  const existingDisambiguationIndex = existing?.headers?.findIndex((h) => h === 'Disambiguation') || 8;
+  // Start with imported rows as foundation - maintain their order
+  const finalRows = [];
+  const matchedImportedIndices = new Set();
+  const referenceCursors = new Map(); // Track insertion position per reference
 
-  console.log('Existing headers:', existing.headers);
-  console.log('Existing indices:', { origWords: existingOrigWordsIndex, occurrence: existingOccurrenceIndex, twLink: existingTWLinkIndex, disambiguation: existingDisambiguationIndex });
+  // First, add all imported rows as OLD (will be updated to MERGED if matched)
+  existingRows.forEach((importedRow, index) => {
+    // Pad imported row to match final headers length
+    const paddedRow = [...importedRow];
+    while (paddedRow.length < finalHeaders.length - 1) {
+      paddedRow.push('');
+    }
+    finalRows.push([...paddedRow, 'OLD']);
+  });
 
-  // Helper function to normalize Hebrew text
-  const normalizeHebrew = (text) => {
-    if (!text) return text;
-    return text.normalize('NFC');
-  };
-
-  // Helper function to create a unique key for row matching
-  const createRowKey = (row, referenceIndex, origWordsIndex, occurrenceIndex) => {
-    let reference = row[referenceIndex] || '';
-    if (typeof reference === 'string' && reference.startsWith('DELETED ')) {
+  // Helper function to create a matching key
+  const createMatchKey = (row, refIndex, origIndex, occIndex) => {
+    let reference = row[refIndex] || '';
+    if (reference.startsWith('DELETED ')) {
       reference = reference.substring(8);
     }
-    const origWords = normalizeHebrew(row[origWordsIndex] || '');
-    const occurrence = row[occurrenceIndex] || '';
-    return `${reference}-${origWords}-${occurrence}`;
+    const origWords = normalizeHebrewText(row[origIndex] || '');
+    const occurrence = row[occIndex] || '';
+    return `${reference}|${origWords}|${occurrence}`;
   };
 
-  // Create a map of existing rows keyed by their unique identifier
-  // Each key maps to an array of rows since multiple rows can have the same Reference-OrigWords-Occurrence
-  const existingRowsMap = new Map();
-  existingRows.forEach((row, index) => {
-    const key = createRowKey(row, existingReferenceIndex, existingOrigWordsIndex, existingOccurrenceIndex);
-    if (!existingRowsMap.has(key)) {
-      existingRowsMap.set(key, []);
+  // Process each generated row - maintain their order
+  generatedRows.forEach((generatedRow, genIndex) => {
+    const genKey = createMatchKey(generatedRow, referenceIndex, origWordsIndex, occurrenceIndex);
+    const genTWLink = generatedRow[twLinkIndex];
+    const genDisambig = disambiguationIndex >= 0 ? (generatedRow[disambiguationIndex] || '') : '';
+    const genRef = generatedRow[referenceIndex] || '';
+
+    console.log(`\nProcessing generated row ${genIndex + 1}: ${genKey}, TWLink: ${genTWLink}`);
+
+    // Look for matching imported row
+    let matchedImportedIndex = -1;
+
+    // Try to find a match in imported rows (Reference + OrigWords + Occurrence)
+    for (let i = 0; i < existingRows.length; i++) {
+      if (matchedImportedIndices.has(i)) continue;
+
+      const importedRow = existingRows[i];
+      const impKey = createMatchKey(importedRow, referenceIndex, origWordsIndex, occurrenceIndex);
+
+      if (genKey === impKey) {
+        matchedImportedIndex = i;
+        console.log(`  Found match at imported index ${i}`);
+        break;
+      }
     }
-    existingRowsMap.get(key).push({ row, originalIndex: index });
-  });
 
-  console.log('Created existing rows map with keys:', Array.from(existingRowsMap.keys()));
-  console.log('Existing rows per key:', Array.from(existingRowsMap.entries()).map(([key, rows]) => `${key}: ${rows.length} rows`));
+    if (matchedImportedIndex !== -1) {
+      // Match found - update the imported row in finalRows with generated data
+      const importedRow = existingRows[matchedImportedIndex];
+      const impTWLink = importedRow[twLinkIndex];
 
-  // Helper function to extract TWLink ending (e.g., "kt/god" from "rc://*/tw/dict/bible/kt/god")
-  const getTWLinkEnding = (twLink) => {
-    if (!twLink) return '';
-    const parts = twLink.split('/');
-    return parts.length >= 2 ? parts.slice(-2).join('/') : twLink;
-  };
+      console.log(`  Merging: keeping imported ID and TWLink=${impTWLink}, using generated GLQuote/GLOccurrence/Disambiguation`);
 
-  // Helper function to parse disambiguation options
-  const parseDisambiguationOptions = (disambiguation) => {
-    if (!disambiguation || !disambiguation.trim()) return [];
-    // Remove parentheses and split by comma
-    return disambiguation.trim()
-      .replace(/^\(/, '')
-      .replace(/\)$/, '')
-      .split(',')
-      .map(d => d.trim())
-      .filter(d => d.length > 0);
-  };
-
-  // Process generated rows first - match with existing and mark appropriately
-  const processedRows = [];
-
-  generatedRows.forEach((generatedRow, index) => {
-    const key = createRowKey(generatedRow, generatedReferenceIndex, generatedOrigWordsIndex, generatedOccurrenceIndex);
-
-    if (existingRowsMap.has(key)) {
-      const existingRowsArray = existingRowsMap.get(key);
-      const generatedTWLink = generatedRow[generatedTWLinkIndex];
-      const generatedTWLinkEnding = getTWLinkEnding(generatedTWLink);
-      const generatedDisambiguation = generatedRow[generatedDisambiguationIndex] || '';
-      const disambiguationOptions = parseDisambiguationOptions(generatedDisambiguation);
-
-      console.log(`Processing generated row with key: ${key}`);
-      console.log(`Generated TWLink: ${generatedTWLink} (ending: ${generatedTWLinkEnding})`);
-      console.log(`Generated disambiguation: ${generatedDisambiguation}`);
-      console.log(`Disambiguation options: ${disambiguationOptions.join(', ')}`);
-
-      // Look for a matching existing row
-      let matchedExistingIndex = -1;
-      let matchedExisting = null;
-
-      for (let i = 0; i < existingRowsArray.length; i++) {
-        const existingData = existingRowsArray[i];
-        const existingRow = existingData.row;
-        const existingTWLink = existingRow[existingTWLinkIndex];
-        const existingTWLinkEnding = getTWLinkEnding(existingTWLink);
-
-        console.log(`  Checking existing TWLink: ${existingTWLink} (ending: ${existingTWLinkEnding})`);
-
-        // Check for exact TWLink match
-        if (generatedTWLink === existingTWLink) {
-          console.log(`  Exact TWLink match found!`);
-          matchedExistingIndex = i;
-          matchedExisting = existingData;
-          break;
-        }
-
-        // Check if existing TWLink ending matches any disambiguation option
-        if (disambiguationOptions.includes(existingTWLinkEnding)) {
-          console.log(`  Disambiguation match found: ${existingTWLinkEnding}`);
-          matchedExistingIndex = i;
-          matchedExisting = existingData;
-          break;
+      // Find the imported row in finalRows and update it
+      let finalRowIndex = -1;
+      for (let j = 0; j < finalRows.length; j++) {
+        if (finalRows[j][finalRows[j].length - 1] === 'OLD') {
+          // Check if this is the same imported row by comparing key data and TWLink
+          const finalRowKey = createMatchKey(finalRows[j], referenceIndex, origWordsIndex, occurrenceIndex);
+          const importedRowKey = createMatchKey(importedRow, referenceIndex, origWordsIndex, occurrenceIndex);
+          if (finalRowKey === importedRowKey && finalRows[j][twLinkIndex] === impTWLink) {
+            finalRowIndex = j;
+            break;
+          }
         }
       }
 
-      if (matchedExisting) {
-        // Match found - update generated row with existing data
-        const existingRow = matchedExisting.row;
-
-        console.log(`Match found for key: ${key}`);
-
-        // Create updated row with existing data in first 6 columns
-        const updatedRow = [...generatedRow];
-
-        // Replace first 6 columns with existing row data
-        for (let i = 0; i < 6 && i < existingRow.length; i++) {
-          updatedRow[i] = existingRow[i];
+      if (finalRowIndex !== -1) {
+        // Keep imported data in first 6 columns (including ID and TWLink), use generated data for columns 6+
+        for (let col = 6; col < generatedHeaders.length; col++) {
+          if (col < generatedRow.length) {
+            finalRows[finalRowIndex][col] = generatedRow[col];
+          }
         }
 
-        // Handle TWLink disambiguation if different
-        const existingTWLink = existingRow[existingTWLinkIndex];
-        const existingDisambig = existingDisambiguationIndex >= 0 ? (existingRow[existingDisambiguationIndex] || '') : '';
-        const hasExistingDone = typeof existingDisambig === 'string' && existingDisambig.startsWith('DONE ');
+        // Update status to MERGED
+        finalRows[finalRowIndex][finalRows[finalRowIndex].length - 1] = 'MERGED';
 
-        if (generatedTWLink !== existingTWLink && generatedDisambiguationIndex >= 0) {
-          const existingArticle = getTWLinkEnding(existingTWLink);
-          const generatedArticle = getTWLinkEnding(generatedTWLink);
-
-          let disambiguations = [generatedArticle];
-          if (generatedRow[generatedDisambiguationIndex] && generatedRow[generatedDisambiguationIndex].trim()) {
-            disambiguations = parseDisambiguationOptions(generatedRow[generatedDisambiguationIndex]);
-          }
-          if (!disambiguations.includes(existingArticle)) {
-            disambiguations.unshift(existingArticle);
-          }
-          let newDisambig = `(${disambiguations.join(', ')})`;
-          if (hasExistingDone) {
-            newDisambig = `DONE ${newDisambig}`;
-          }
-          updatedRow[generatedDisambiguationIndex] = newDisambig;
-        } else if (generatedDisambiguationIndex >= 0) {
-          // TWLink unchanged; keep generated disambiguation content but preserve DONE status if present
-          let newDisambig = updatedRow[generatedDisambiguationIndex] || generatedRow[generatedDisambiguationIndex] || '';
-          if (hasExistingDone && !newDisambig.startsWith('DONE ')) {
-            newDisambig = `DONE ${newDisambig}`;
-          }
-          updatedRow[generatedDisambiguationIndex] = newDisambig;
-        }
-
-        // Add "MERGED" to Merge Status column
-        if (existingRows.length > 0) {
-          updatedRow.push('MERGED');
-        }
-
-        processedRows.push(updatedRow);
-
-        // Remove the matched existing row from the array
-        existingRowsArray.splice(matchedExistingIndex, 1);
-
-        // If the array is now empty, remove the key entirely
-        if (existingRowsArray.length === 0) {
-          existingRowsMap.delete(key);
-        }
-      } else {
-        // No match found - mark as NEW
-        const newRow = existingRows.length > 0 ? [...generatedRow, 'NEW'] : generatedRow;
-        processedRows.push(newRow);
-
-        console.log(`No match found for key: ${key} - marked as NEW`);
+        // Update cursor for this reference to point after this merged row
+        referenceCursors.set(genRef, finalRowIndex + 1);
+        console.log(`  Updated row ${finalRowIndex} to MERGED, cursor for ${genRef} set to ${finalRowIndex + 1}`);
       }
+
+      matchedImportedIndices.add(matchedImportedIndex);
+
     } else {
-      // No existing rows with this key - mark as NEW
-      const newRow = existingRows.length > 0 ? [...generatedRow, 'NEW'] : generatedRow;
-      processedRows.push(newRow);
+      // No match found - insert as NEW
+      console.log(`  No match found - will be added as NEW`);
 
-      console.log(`No existing rows for key: ${key} - marked as NEW`);
+      let insertIndex = finalRows.length; // Default to end
+
+      // Check if we have a cursor for this reference (previous generated row was processed for this reference)
+      if (referenceCursors.has(genRef)) {
+        insertIndex = referenceCursors.get(genRef);
+        console.log(`  Using existing cursor for ${genRef}: position ${insertIndex}`);
+      } else {
+        // First generated row for this reference - find where it should go before any imported rows of same/greater reference
+        for (let i = 0; i < finalRows.length; i++) {
+          const existingRef = finalRows[i][referenceIndex] || '';
+          const cleanExistingRef = existingRef.startsWith('DELETED ') ? existingRef.substring(8) : existingRef;
+
+          const comparison = compareReferences(genRef, cleanExistingRef);
+
+          if (comparison <= 0) {
+            insertIndex = i;
+            break;
+          }
+        }
+        console.log(`  First generated row for ${genRef}, inserting at position ${insertIndex}`);
+      }
+
+      // Pad generated row to match final headers length
+      const paddedGeneratedRow = [...generatedRow];
+      while (paddedGeneratedRow.length < finalHeaders.length - 1) {
+        paddedGeneratedRow.push('');
+      }
+
+      // Insert the new row
+      const newRow = [...paddedGeneratedRow, 'NEW'];
+      finalRows.splice(insertIndex, 0, newRow);
+
+      // Update cursor to after this insertion
+      referenceCursors.set(genRef, insertIndex + 1);
+      console.log(`  Inserted NEW row at position ${insertIndex}, updated cursor to ${insertIndex + 1}`);
     }
   });
 
-  // Now process remaining existing rows that weren't matched
-  const remainingExistingRows = [];
-  for (const [key, existingRowsArray] of existingRowsMap) {
-    // Flatten the array of remaining existing rows
-    for (const existingData of existingRowsArray) {
-      const existingRow = existingData.row;
-
-      // Create extended existing row with "OLD" status
-      const extendedRow = [...existingRow];
-      while (extendedRow.length < generatedHeaders.length) {
-        extendedRow.push('');
-      }
-      extendedRow.push('OLD');
-
-      remainingExistingRows.push({
-        row: extendedRow,
-        reference: existingRow[0] || '',
-        key: key
-      });
-
-      console.log(`Remaining existing row with key: ${key} - marked as OLD`);
-    }
-  }
-
-  // Sort remaining existing rows by reference for proper insertion
-  remainingExistingRows.sort((a, b) => compareReferences(a.reference, b.reference));
-
-  // Insert remaining existing rows in the correct positions
-  const finalRows = [];
-  let processedIndex = 0;
-  let remainingIndex = 0;
-
-  while (processedIndex < processedRows.length || remainingIndex < remainingExistingRows.length) {
-    // If no more remaining rows, add all processed rows
-    if (remainingIndex >= remainingExistingRows.length) {
-      finalRows.push(...processedRows.slice(processedIndex));
-      break;
-    }
-
-    // If no more processed rows, add all remaining rows
-    if (processedIndex >= processedRows.length) {
-      finalRows.push(...remainingExistingRows.slice(remainingIndex).map(item => item.row));
-      break;
-    }
-
-    const processedRow = processedRows[processedIndex];
-    const remainingRow = remainingExistingRows[remainingIndex];
-    const processedRef = processedRow[0] || '';
-    const remainingRef = remainingRow.reference;
-
-    const refComparison = compareReferences(remainingRef, processedRef);
-
-    if (refComparison < 0) {
-      // Remaining row comes before processed row
-      finalRows.push(remainingRow.row);
-      remainingIndex++;
-    } else if (refComparison === 0) {
-      // Same reference - check merge status to determine order
-      const processedMergeStatus = processedRow[processedRow.length - 1];
-
-      if (processedMergeStatus === 'OLD') {
-        // Processed OLD row comes first
-        finalRows.push(processedRow);
-        processedIndex++;
-      } else {
-        // Remaining OLD row comes before NEW/MERGED rows
-        finalRows.push(remainingRow.row);
-        remainingIndex++;
-      }
-    } else {
-      // Processed row comes before remaining row
-      finalRows.push(processedRow);
-      processedIndex++;
-    }
-  }
-
-  console.log(`Final merge result: ${finalRows.length} total rows`);
+  console.log(`\nFinal result: ${finalRows.length} total rows`);
+  console.log(`Matched imported rows: ${matchedImportedIndices.size}`);
+  console.log(`Total generated rows: ${generatedRows.length}`);
 
   // Rebuild the TSV content
-  const result = [finalHeaders.join('\t'), ...finalRows.map((row) => row.join('\t'))].join('\n');
+  const result = [finalHeaders.join('\t'), ...finalRows.map(row => row.join('\t'))].join('\n');
   return result;
 };
