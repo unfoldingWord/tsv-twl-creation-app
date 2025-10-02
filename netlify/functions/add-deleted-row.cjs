@@ -34,6 +34,15 @@ const normalizeHebrewText = (text) => {
 };
 
 exports.handler = async (event) => {
+  console.log('Environment check:', {
+    hasRegion: !!process.env.TWL_AWS_REGION,
+    hasAccessKey: !!process.env.TWL_AWS_ACCESS_KEY_ID,
+    hasSecretKey: !!process.env.TWL_AWS_SECRET_ACCESS_KEY,
+    hasTableName: !!process.env.TWL_DYNAMODB_TABLE_NAME,
+    region: process.env.TWL_AWS_REGION,
+    tableName: process.env.TWL_DYNAMODB_TABLE_NAME
+  });
+
   // Handle preflight requests
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
