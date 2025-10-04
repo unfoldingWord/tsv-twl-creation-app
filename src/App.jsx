@@ -391,8 +391,8 @@ function App() {
             const referenceDisplay = newReference.startsWith('DELETED ') ? newReference.substring(8) : newReference;
             const origWords = rowData[origWordsIndex] || '';
             const occurrence = rowData[occurrenceIndex] || '';
-            const glQuote = glQuoteIndex !== -1 ? (rowData[glQuoteIndex] || '') : '';
-            const glOccurrence = glOccurrenceIndex !== -1 ? (rowData[glOccurrenceIndex] || '') : '';
+            const glQuote = glQuoteIndex !== -1 ? rowData[glQuoteIndex] || '' : '';
+            const glOccurrence = glOccurrenceIndex !== -1 ? rowData[glOccurrenceIndex] || '' : '';
 
             if (action === 'delete') {
               await addDeletedRowToServer(book, referenceDisplay, origWords, occurrence, glQuote, glOccurrence);
