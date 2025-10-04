@@ -51,14 +51,14 @@ export const filterDeletedRowsWithData = (tsvContent, deletedItems) => {
     // 1. The row matches a deleted item in DynamoDB
     // 2. The row is not already deleted
     // 3. The row is NOT a MERGED row (preserve imported content)
-    if (keySet.has(key) && !reference.startsWith('DELETED ') && mergeStatus !== 'MERGED') {
+    if (keySet.has(key) && !reference.startsWith('DELETED ') && mergeStatus !== 'MERGED' && mergeStatus !== 'OLD') {
       const updatedRow = [...cols];
       updatedRow[referenceIndex] = `DELETED ${displayRef}`;
       updated.push(updatedRow.join('\t'));
       console.log(`Auto-deleted ${mergeStatus || 'unmerged'} row: ${displayRef} | ${origWords} | ${occurrence}`);
     } else {
-      if (keySet.has(key) && mergeStatus === 'MERGED') {
-        console.log(`Skipped auto-deletion of MERGED row: ${displayRef} | ${origWords} | ${occurrence}`);
+      if (keySet.has(key) && (mergeStatus === 'MERGED' || mergeStatus === 'OLD')) {
+        console.log(`Skipped auto-deletion of ${mergeStatus} row: ${displayRef} | ${origWords} | ${occurrence}`);
       }
       updated.push(lines[i]);
     }

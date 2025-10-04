@@ -47,6 +47,7 @@ import { RxLinkBreak2 as UnlinkIcon } from 'react-icons/rx';
 import { convertRcLinkToUrl, convertReferenceToTnUrl } from '../utils/urlConverters.js';
 import { truncateContextAroundWord } from '../utils/tsvUtils.js';
 import { parseDisambiguationOptions, renderDisambiguationText } from '../utils/disambiguationUtils.js';
+import { normalizeHebrewText } from '../utils/unlinkedWords.js';
 import JSZip from 'jszip';
 import { marked } from 'marked';
 import { fetchTwArchiveZip } from '../services/twlService.js';
@@ -62,6 +63,7 @@ const TWLTable = ({
   onClearDisambiguation,
   onEditTWLink,
   onShowScripture,
+  unlinkedWords,
   dcsHost,
 }) => {
   // State for pagination, search, and filtering
@@ -80,6 +82,16 @@ const TWLTable = ({
   // State for tracking which TWLink field is being edited
   const [editingTWLink, setEditingTWLink] = useState(null);
   const [editValue, setEditValue] = useState('');
+
+  // Function to check if a word combination is already unlinked
+  const isWordAlreadyUnlinked = (origWords, twLink) => {
+    if (!unlinkedWords || !Array.isArray(unlinkedWords)) return false;
+
+    const normalizedOrigWords = normalizeHebrewText(origWords);
+    const normalizedTWLink = twLink.trim();
+
+    return unlinkedWords.some((word) => normalizeHebrewText(word.origWords) === normalizedOrigWords && word.twLink.trim() === normalizedTWLink);
+  };
 
   // State for TW article modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -1407,19 +1419,37 @@ const TWLTable = ({
                         <CopyIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="Unlink this Word">
-                      <IconButton
-                        onClick={() => onUnlinkRow(getActualRowIndex(rowIndex))}
-                        size="small"
-                        disabled={editingTWLink !== null}
-                        sx={{
-                          color: 'red',
-                          '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.04)' },
-                        }}
-                      >
-                        <UnlinkIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    {(() => {
+                      // Get row data for checking if word is already unlinked
+                      const origWordsIndex = tableData.headers.findIndex((h) => h === 'OrigWords');
+                      const twLinkIndex = tableData.headers.findIndex((h) => h === 'TWLink');
+                      const origWords = origWordsIndex !== -1 ? row[origWordsIndex] || '' : '';
+                      const twLink = twLinkIndex !== -1 ? row[twLinkIndex] || '' : '';
+                      const isAlreadyUnlinked = isWordAlreadyUnlinked(origWords, twLink);
+
+                      const tooltipTitle = isAlreadyUnlinked ? 'This OrigWords & TWLink combination has already been unlinked' : 'Unlink this Word';
+
+                      return (
+                        <Tooltip title={tooltipTitle}>
+                          <span>
+                            <IconButton
+                              onClick={() => onUnlinkRow(getActualRowIndex(rowIndex))}
+                              size="small"
+                              disabled={editingTWLink !== null || isAlreadyUnlinked}
+                              sx={{
+                                color: isAlreadyUnlinked ? '#ccc' : 'red',
+                                '&:hover': isAlreadyUnlinked ? {} : { backgroundColor: 'rgba(255, 152, 0, 0.04)' },
+                                '&.Mui-disabled': {
+                                  color: '#ccc',
+                                },
+                              }}
+                            >
+                              <UnlinkIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      );
+                    })()}
                   </TableCell>
                 </TableRow>
               );

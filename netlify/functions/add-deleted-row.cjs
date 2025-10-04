@@ -38,9 +38,9 @@ exports.handler = async (event) => {
     hasRegion: !!process.env.TWL_AWS_REGION,
     hasAccessKey: !!process.env.TWL_AWS_ACCESS_KEY_ID,
     hasSecretKey: !!process.env.TWL_AWS_SECRET_ACCESS_KEY,
-    hasTableName: !!process.env.TWL_DYNAMODB_TABLE_NAME,
+    hasDeletedTableName: !!process.env.TWL_DYNAMODB_DELETED_TABLE_NAME,
     region: process.env.TWL_AWS_REGION,
-    tableName: process.env.TWL_DYNAMODB_TABLE_NAME
+    deletedTableName: process.env.TWL_DYNAMODB_DELETED_TABLE_NAME
   });
 
   // Handle preflight requests
@@ -52,7 +52,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { book, reference, origWords, occurrence, userIdentifier } = JSON.parse(event.body || '{}');
+    const { book, reference, origWords, occurrence, glQuote, glOccurrence, userIdentifier } = JSON.parse(event.body || '{}');
 
     if (!book || !reference || !origWords || occurrence === undefined) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'book, reference, origWords, and occurrence are required' }) };
@@ -69,6 +69,8 @@ exports.handler = async (event) => {
       origWords, // original for display
       normalizedOrigWords,
       occurrence: String(occurrence).trim(),
+      glQuote: glQuote || '', // add GLQuote for reference
+      glOccurrence: glOccurrence || '', // add GLOccurrence for reference
       userIdentifier: userIdentifier || 'anonymous',
       dateAdded: now,
       lastModified: now,

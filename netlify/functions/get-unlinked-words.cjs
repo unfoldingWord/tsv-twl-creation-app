@@ -41,7 +41,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { userIdentifier, includeRemoved } = event.queryStringParameters || {};
+    const { userIdentifier } = event.queryStringParameters || {};
 
     // Build scan parameters
     const scanParams = {
@@ -49,22 +49,11 @@ exports.handler = async (event, context) => {
     };
 
     // Add filters based on parameters
-    let filterExpressions = [];
-    let expressionAttributeValues = {};
-
     if (userIdentifier) {
-      filterExpressions.push('userIdentifier = :userIdentifier');
-      expressionAttributeValues[':userIdentifier'] = userIdentifier;
-    }
-
-    if (includeRemoved !== 'true') {
-      filterExpressions.push('(attribute_not_exists(removed) OR removed = :removed)');
-      expressionAttributeValues[':removed'] = false;
-    }
-
-    if (filterExpressions.length > 0) {
-      scanParams.FilterExpression = filterExpressions.join(' AND ');
-      scanParams.ExpressionAttributeValues = expressionAttributeValues;
+      scanParams.FilterExpression = 'userIdentifier = :userIdentifier';
+      scanParams.ExpressionAttributeValues = {
+        ':userIdentifier': userIdentifier,
+      };
     }
 
     const result = await docClient.send(new ScanCommand(scanParams));
@@ -78,7 +67,6 @@ exports.handler = async (event, context) => {
       twLink: item.originalTWLink || item.twLink,
       glQuote: item.glQuote,
       dateAdded: item.dateAdded,
-      removed: item.removed || false,
       userIdentifier: item.userIdentifier, // Include userIdentifier field
     }));
 

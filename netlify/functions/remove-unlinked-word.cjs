@@ -1,8 +1,8 @@
 /**
- * Netlify Function to mark an unlinked word as removed in DynamoDB
+ * Netlify Function to delete an unlinked word from DynamoDB
  */
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, UpdateCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, DeleteCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
 
 // Initialize DynamoDB client
 const client = new DynamoDBClient({
@@ -55,8 +55,13 @@ exports.handler = async (event, context) => {
     // Normalize Hebrew text for consistent lookup
     const normalizeHebrewText = (text) => {
       if (!text) return '';
+
+      // Remove Hebrew cantillation marks (Unicode range 0591-05BD)
+      // and other Hebrew diacritical marks (05BF-05C7)
+      // Also remove maqqef (־) and other punctuation that might interfere with matching
       return text
-        .replace(/[\u0591-\u05BD\u05BF-\u05C7]/g, '')
+        .replace(/[\u0591-\u05BD\u05BF-\u05C7\u05BE\u05C0\u05C3\u05C6]/g, '')
+        .replace(/[\u2000-\u200F\u2028-\u202F]/g, ' ') // Replace various Unicode spaces with regular space
         .replace(/\s+/g, ' ')
         .trim();
     };
@@ -83,30 +88,26 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Update the item to mark as removed
-    const updateParams = {
+    // Actually delete the item from the database
+    const deleteParams = {
       TableName: process.env.TWL_DYNAMODB_TABLE_NAME,
       Key: {
         origWords: normalizedOrigWords,
         twLink: normalizedTWLink,
       },
-      UpdateExpression: 'SET removed = :removed, lastModified = :lastModified, removedBy = :removedBy',
-      ExpressionAttributeValues: {
-        ':removed': true,
-        ':lastModified': new Date().toISOString(),
-        ':removedBy': userIdentifier || 'anonymous',
-      },
-      ReturnValues: 'ALL_NEW',
     };
 
-    const result = await docClient.send(new UpdateCommand(updateParams));
+    await docClient.send(new DeleteCommand(deleteParams));
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        message: 'Unlinked word marked as removed successfully',
-        item: result.Attributes,
+        message: 'Unlinked word deleted successfully',
+        deletedKey: {
+          origWords: normalizedOrigWords,
+          twLink: normalizedTWLink,
+        },
       }),
     };
   } catch (error) {

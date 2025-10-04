@@ -64,9 +64,17 @@ import ScriptureViewer from './components/ScriptureViewer.jsx';
 import packageInfo from '../package.json';
 import { fetchTWLContent } from './services/apiService.js';
 import { mergeExistingTwls } from './services/twlService.js';
-import { isValidTsvStructure, isValidExtendedTsvStructure, isExtendedTsvFormat, processTsvContent, ensureUniqueIds, normalizeTsvColumnCount, compareReferences } from './utils/tsvUtils.js';
+import {
+  isValidTsvStructure,
+  isValidExtendedTsvStructure,
+  isExtendedTsvFormat,
+  processTsvContent,
+  ensureUniqueIds,
+  normalizeTsvColumnCount,
+  compareReferences,
+} from './utils/tsvUtils.js';
 import { convertReferenceToTnUrl } from './utils/urlConverters.js';
-import { filterUnlinkedWords, removeUnlinkedWordByContent, getUnlinkedWords } from './utils/unlinkedWords.js';
+import { filterUnlinkedWords, removeUnlinkedWordByContent, getUnlinkedWords, normalizeHebrewText } from './utils/unlinkedWords.js';
 import { filterDeletedRowsWithData } from './utils/deletedRows.js';
 import { addDeletedRowToServer, removeDeletedRowFromServer, getDeletedRowsFromServer } from './services/deletedRowsApi.js';
 import { getUserIdentifier } from './utils/userUtils.js';
@@ -117,7 +125,7 @@ function App() {
   } = useAppState();
 
   // Unlinked words management with server-first loading
-  const { addUnlinkedWord } = useUnlinkedWords();
+  const { unlinkedWords, addUnlinkedWord, refreshFromLocalStorage } = useUnlinkedWords();
 
   // Process TWL content based on column visibility setting
   const processedTsvContent = useMemo(() => processTsvContent(twlContent), [twlContent]);
@@ -320,6 +328,9 @@ function App() {
    * Handle when unlinked words are changed - regenerate current TWL if present
    */
   const handleUnlinkedWordsChange = () => {
+    // Refresh the unlinked words state to reflect changes from UnlinkedWordsManager
+    refreshFromLocalStorage();
+
     if (twlContent) {
       // Create backup before filtering content
       createBackup();
@@ -367,6 +378,8 @@ function App() {
       const referenceIndex = headers.findIndex((header) => header === 'Reference');
       const origWordsIndex = headers.findIndex((header) => header === 'OrigWords');
       const occurrenceIndex = headers.findIndex((header) => header === 'Occurrence');
+      const glQuoteIndex = headers.findIndex((header) => header === 'GLQuote');
+      const glOccurrenceIndex = headers.findIndex((header) => header === 'GLOccurrence');
 
       if (referenceIndex >= 0 && lines[rowIndex + 1]) {
         const rowData = lines[rowIndex + 1].split('\t');
@@ -378,9 +391,11 @@ function App() {
             const referenceDisplay = newReference.startsWith('DELETED ') ? newReference.substring(8) : newReference;
             const origWords = rowData[origWordsIndex] || '';
             const occurrence = rowData[occurrenceIndex] || '';
+            const glQuote = glQuoteIndex !== -1 ? (rowData[glQuoteIndex] || '') : '';
+            const glOccurrence = glOccurrenceIndex !== -1 ? (rowData[glOccurrenceIndex] || '') : '';
 
             if (action === 'delete') {
-              await addDeletedRowToServer(book, referenceDisplay, origWords, occurrence);
+              await addDeletedRowToServer(book, referenceDisplay, origWords, occurrence, glQuote, glOccurrence);
             } else if (action === 'restore') {
               await removeDeletedRowFromServer(book, referenceDisplay, origWords, occurrence);
             }
@@ -445,7 +460,9 @@ function App() {
       return;
     }
 
-    const reference = referenceIndex !== -1 ? row[referenceIndex] || '' : '';
+    const rawReference = referenceIndex !== -1 ? row[referenceIndex] || '' : '';
+    // Remove DELETED prefix from reference before storing in database
+    const reference = rawReference.startsWith('DELETED ') ? rawReference.substring(8) : rawReference;
     const origWords = row[origWordsIndex] || '';
     const twLink = row[twLinkIndex] || '';
     const glQuote = glQuoteIndex !== -1 ? row[glQuoteIndex] || '' : '';
@@ -458,8 +475,29 @@ function App() {
 
     console.log('Normalized target:', { normalizedOrigWords, normalizedTWLink });
 
+    // Check if already unlinked before proceeding
+    const isAlreadyUnlinked = unlinkedWords.some((word) => normalizeHebrewText(word.origWords) === normalizedOrigWords && word.twLink.trim() === normalizedTWLink);
+
+    if (isAlreadyUnlinked) {
+      setSnackbar({
+        open: true,
+        message: 'This OrigWords & TWLink combination has already been unlinked.',
+        severity: 'warning',
+      });
+      return;
+    }
+
     // Add to unlinked words (both server and local)
-    await addUnlinkedWord(selectedBook?.value || 'Unknown', reference, origWords, twLink, glQuote);
+    const result = await addUnlinkedWord(selectedBook?.value || 'Unknown', reference, origWords, twLink, glQuote);
+
+    if (result && result.existing) {
+      setSnackbar({
+        open: true,
+        message: 'This OrigWords & TWLink combination has already been unlinked.',
+        severity: 'warning',
+      });
+      return;
+    }
 
     // Soft delete all rows that match this OrigWords and TWLink combination (using normalized comparison)
     const updatedLines = [lines[0]]; // Keep header
@@ -510,6 +548,13 @@ function App() {
     setTwlContent(newContent);
     // Save to localStorage after unlinking
     saveTwlContent(newContent);
+
+    // Show success message
+    setSnackbar({
+      open: true,
+      message: `Successfully unlinked "${origWords}" from "${twLink}" (${markedDeletedCount} row${markedDeletedCount === 1 ? '' : 's'} affected)`,
+      severity: 'success',
+    });
   };
 
   /**
@@ -883,7 +928,9 @@ function App() {
       twlToLoad = filterUnlinkedWords(twlToLoad);
       // Apply server-side deleted row markers for this book
       try {
+        console.log('🔍 Fetching deleted rows for existing TWL, book:', selectedBook.value);
         const { items: deletedItems } = await getDeletedRowsFromServer(selectedBook.value);
+        console.log('📊 Found deleted rows for existing TWL:', deletedItems.length, deletedItems);
         twlToLoad = filterDeletedRowsWithData(twlToLoad, deletedItems);
       } catch (e) {
         console.warn('Could not load deleted row markers:', e?.message || e);
@@ -1007,7 +1054,9 @@ function App() {
       generatedTwl = filterUnlinkedWords(generatedTwl);
       // Apply server-side deleted row markers for this book
       try {
+        console.log('🔍 Fetching deleted rows for book:', selectedBook.value);
         const { items: deletedItems } = await getDeletedRowsFromServer(selectedBook.value);
+        console.log('📊 Found deleted rows:', deletedItems.length, deletedItems);
         generatedTwl = filterDeletedRowsWithData(generatedTwl, deletedItems);
       } catch (e) {
         console.warn('Could not load deleted row markers:', e?.message || e);
@@ -1829,6 +1878,7 @@ function App() {
                         onEditTWLink={handleEditTWLink}
                         onReferenceClick={handleReferenceClick}
                         onShowScripture={handleShowScripture}
+                        unlinkedWords={unlinkedWords}
                         dcsHost={dcsHost}
                       />
                     </>

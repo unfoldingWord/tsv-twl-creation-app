@@ -2,7 +2,7 @@
  * Custom hook for managing unlinked words with server-first loading
  */
 import { useState, useEffect } from 'react';
-import { getUnlinkedWords, addUnlinkedWord as addToLocal, removeUnlinkedWord as removeFromLocal } from '../utils/unlinkedWords.js';
+import { getUnlinkedWords, addUnlinkedWord as addToLocal, removeUnlinkedWord as removeFromLocal, normalizeHebrewText } from '../utils/unlinkedWords.js';
 import { getUnlinkedWordsFromServer, addUnlinkedWordToServer, removeUnlinkedWordFromServer, syncUnlinkedWordsWithServer } from '../services/unlinkedWordsApi.js';
 import { getUserIdentifier, getCurrentTimestamp } from '../utils/userUtils.js';
 
@@ -47,92 +47,76 @@ export const useUnlinkedWords = () => {
   };
 
   const addUnlinkedWord = async (book, reference, origWords, twLink, glQuote) => {
-    // Check if word already exists (possibly as removed)
+    // Use normalized comparison for checking duplicates
+    const normalizedOrigWords = normalizeHebrewText(origWords);
+    const normalizedTWLink = twLink.trim();
+
+    // Check if word already exists using normalized comparison
     const existingWordIndex = unlinkedWords.findIndex(word =>
-      word.origWords === origWords && word.twLink === twLink
+      normalizeHebrewText(word.origWords) === normalizedOrigWords &&
+      word.twLink.trim() === normalizedTWLink
     );
 
     if (existingWordIndex !== -1) {
-      // Word exists - if it's removed, just set removed = false
-      if (unlinkedWords[existingWordIndex].removed) {
-        const updatedWord = {
-          ...unlinkedWords[existingWordIndex],
-          removed: false,
-          lastModified: getCurrentTimestamp()
-        };
-
-        setUnlinkedWords(prev =>
-          prev.map((word, index) =>
-            index === existingWordIndex ? updatedWord : word
-          )
-        );
-
-        // Update local storage
-        const localWords = getUnlinkedWords();
-        const localIndex = localWords.findIndex(w => w.origWords === origWords && w.twLink === twLink);
-        if (localIndex !== -1) {
-          localWords[localIndex] = { ...localWords[localIndex], removed: false };
-          localStorage.setItem('twl-unlinked-words', JSON.stringify(localWords));
-        }
-      }
-      // If it already exists and is not removed, do nothing
-
-    } else {
-      // Add new word
-      const newWord = {
-        id: Date.now().toString(),
-        book,
-        reference,
-        origWords,
-        twLink,
-        glQuote,
-        userIdentifier: getUserIdentifier(),
-        dateAdded: getCurrentTimestamp(),
-        removed: false
-      };
-
-      setUnlinkedWords(prev => [...prev, newWord]);
-
-      // Add to local storage
-      const localWords = getUnlinkedWords();
-      localWords.push(newWord);
-      localStorage.setItem('twl-unlinked-words', JSON.stringify(localWords));
+      // Word already exists - return indication that it's a duplicate
+      return { existing: true, word: unlinkedWords[existingWordIndex] };
     }
 
+    // Add new word
+    const newWord = {
+      id: Date.now().toString(),
+      book,
+      reference,
+      origWords,
+      twLink,
+      glQuote,
+      userIdentifier: getUserIdentifier(),
+      dateAdded: getCurrentTimestamp(),
+    };
+
+    setUnlinkedWords(prev => [...prev, newWord]);
+
+    // Add to local storage
+    const localWords = getUnlinkedWords();
+    localWords.push(newWord);
+    localStorage.setItem('twl-unlinked-words', JSON.stringify(localWords));
+
     try {
-      // Save to server in background
-      await addUnlinkedWordToServer(book, reference, origWords, twLink, glQuote);
+      // Save to server and return the response
+      const serverResponse = await addUnlinkedWordToServer(book, reference, origWords, twLink, glQuote);
+      return serverResponse;
     } catch (serverError) {
       console.warn('Failed to add to server, but local state already updated:', serverError);
+      throw serverError;
     }
   };
 
   const removeUnlinkedWord = async (origWords, twLink) => {
-    // Optimistically update local state immediately for instant UI response
-    setUnlinkedWords(prev => prev.map(word =>
-      (word.origWords === origWords && word.twLink === twLink)
-        ? { ...word, removed: true, removedBy: getUserIdentifier(), lastModified: getCurrentTimestamp() }
-        : word
-    ));
-
-    // Update local storage with removed status
-    const localWords = getUnlinkedWords();
-    const localIndex = localWords.findIndex(w => w.origWords === origWords && w.twLink === twLink);
-    if (localIndex !== -1) {
-      localWords[localIndex] = {
-        ...localWords[localIndex],
-        removed: true,
-        removedBy: getUserIdentifier(),
-        lastModified: getCurrentTimestamp()
-      };
-      localStorage.setItem('twl-unlinked-words', JSON.stringify(localWords));
-    }
-
     try {
-      // Save to server in background
+      // Remove from server first
       await removeUnlinkedWordFromServer(origWords, twLink);
+
+      // If server removal succeeds, remove from local state and storage
+      const normalizedOrigWords = normalizeHebrewText(origWords);
+      const normalizedTWLink = twLink.trim();
+
+      // Remove from local state
+      setUnlinkedWords(prev => prev.filter(word =>
+        !(normalizeHebrewText(word.origWords) === normalizedOrigWords &&
+          word.twLink.trim() === normalizedTWLink)
+      ));
+
+      // Remove from local storage
+      const localWords = getUnlinkedWords();
+      const filteredWords = localWords.filter(word =>
+        !(normalizeHebrewText(word.origWords) === normalizedOrigWords &&
+          word.twLink.trim() === normalizedTWLink)
+      );
+      localStorage.setItem('twl-unlinked-words', JSON.stringify(filteredWords));
+
     } catch (serverError) {
-      console.warn('Failed to remove from server, but local state already updated:', serverError);
+      console.error('Failed to remove from server:', serverError);
+      throw serverError; // Re-throw so the UI can handle the error
     }
   };
 

@@ -65,8 +65,13 @@ exports.handler = async (event, context) => {
     // Normalize Hebrew text for consistent storage
     const normalizeHebrewText = (text) => {
       if (!text) return '';
+
+      // Remove Hebrew cantillation marks (Unicode range 0591-05BD)
+      // and other Hebrew diacritical marks (05BF-05C7)
+      // Also remove maqqef (־) and other punctuation that might interfere with matching
       return text
-        .replace(/[\u0591-\u05BD\u05BF-\u05C7]/g, '')
+        .replace(/[\u0591-\u05BD\u05BF-\u05C7\u05BE\u05C0\u05C3\u05C6]/g, '')
+        .replace(/[\u2000-\u200F\u2028-\u202F]/g, ' ') // Replace various Unicode spaces with regular space
         .replace(/\s+/g, ' ')
         .trim();
     };
@@ -85,8 +90,8 @@ exports.handler = async (event, context) => {
 
     const existingItem = await docClient.send(new GetCommand(getParams));
 
-    // If item exists and is not removed, return existing
-    if (existingItem.Item && !existingItem.Item.removed) {
+    // If item exists, return existing (no need to check 'removed' since we delete rows)
+    if (existingItem.Item) {
       return {
         statusCode: 200,
         headers,
@@ -100,17 +105,22 @@ exports.handler = async (event, context) => {
 
     // Create or update the item
     const timestamp = new Date().toISOString();
+
+    // Remove DELETED prefix from reference if present
+    const cleanReference = reference && reference.startsWith('DELETED ')
+      ? reference.substring(8)
+      : reference || '';
+
     const item = {
       origWords: normalizedOrigWords,
       twLink: normalizedTWLink,
       originalOrigWords: origWords, // Keep original for reference
       book: book || 'Unknown',
-      reference: reference || '',
+      reference: cleanReference,
       glQuote: glQuote || '',
       userIdentifier: userIdentifier || 'anonymous',
       dateAdded: timestamp,
       lastModified: timestamp,
-      removed: false,
     };
 
     const putParams = {
@@ -126,6 +136,7 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         message: 'Unlinked word added successfully',
         item: item,
+        existing: false,
       }),
     };
   } catch (error) {

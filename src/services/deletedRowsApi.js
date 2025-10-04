@@ -4,13 +4,13 @@
 
 import { getUserIdentifier } from '../utils/userUtils.js';
 
-export const addDeletedRowToServer = async (book, reference, origWords, occurrence) => {
+export const addDeletedRowToServer = async (book, reference, origWords, occurrence, glQuote = '', glOccurrence = '') => {
   try {
     const userIdentifier = getUserIdentifier();
     const response = await fetch('/.netlify/functions/add-deleted-row', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ book, reference, origWords, occurrence, userIdentifier }),
+      body: JSON.stringify({ book, reference, origWords, occurrence, glQuote, glOccurrence, userIdentifier }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to add deleted row');
