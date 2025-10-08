@@ -1006,7 +1006,7 @@ const TWLTable = ({
           maxHeight: '800px',
           border: '1px solid #ccc',
           '& .MuiTableCell-root': {
-            fontSize: '12px',
+            fontSize: '14px',
             fontFamily: 'Consolas, Monaco, "Courier New", monospace',
             whiteSpace: 'normal',
             wordWrap: 'break-word',
@@ -1014,7 +1014,8 @@ const TWLTable = ({
             minWidth: '100px',
             cursor: 'text',
             verticalAlign: 'top',
-            padding: '8px 12px',
+            padding: '4px 8px',
+            color: 'black',
           },
           '& .MuiTableCell-head': {
             backgroundColor: '#f5f5f5',
@@ -1028,12 +1029,24 @@ const TWLTable = ({
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow>
-              {tableData.headers.map((header, index) => (
-                <TableCell key={index} sx={{ fontWeight: index > 5 ? 'normal' : 'bold', fontSize: index > 5 ? '1em' : '1.2em', color: index > 5 ? 'grey' : 'black' }}>
-                  {header}
-                </TableCell>
-              ))}
-              {<TableCell sx={{ minWidth: '280px !important', textAlign: 'center', fontWeight: 'normal', color: 'grey' }}>Actions</TableCell>}
+              {tableData.headers.map((header, index) => {
+                // Hide Tags and Variant of columns
+                if (header === 'Tags' || header === 'Variant of') {
+                  return null;
+                }
+
+                // Rename headers for better visibility
+                let displayHeader = header;
+                if (header === 'Occurrence') displayHeader = 'O#';
+                if (header === 'GLOccurrence') displayHeader = 'GLO#';
+
+                return (
+                  <TableCell key={index} sx={{ fontWeight: 'bold', fontSize: '14px', color: 'black', padding: '4px 8px' }}>
+                    {displayHeader}
+                  </TableCell>
+                );
+              })}
+              {<TableCell sx={{ minWidth: '200px !important', textAlign: 'center', fontWeight: 'bold', color: 'black', padding: '4px 8px' }}>Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -1053,6 +1066,12 @@ const TWLTable = ({
                 <TableRow key={`${page}-${rowIndex}`} hover sx={rowStyles}>
                   {row.map((cell, cellIndex) => {
                     const headerName = tableData.headers[cellIndex];
+
+                    // Hide Tags and Variant of columns
+                    if (headerName === 'Tags' || headerName === 'Variant of') {
+                      return null;
+                    }
+
                     const isTWLinkColumn = headerName === 'TWLink';
                     const isReferenceColumn = headerName === 'Reference';
                     const isContextColumn = headerName === 'Context';
@@ -1060,6 +1079,19 @@ const TWLTable = ({
 
                     // TWLink column with external links and edit functionality
                     if (isTWLinkColumn) {
+                      // Extract last two parts of the path for display
+                      const getShortTWLink = (fullLink) => {
+                        if (!fullLink) return '';
+                        // Match pattern like rc://*/tw/dict/bible/other/biblicaltimeyear
+                        const match = fullLink.match(/rc:\/\/\*\/tw\/dict\/bible\/(.+)\/(.+)/);
+                        if (match) {
+                          return `${match[1]}/${match[2]}`;
+                        }
+                        return fullLink; // Fallback to full link if pattern doesn't match
+                      };
+
+                      const displayText = getShortTWLink(cell);
+
                       return (
                         <TableCell
                           key={cellIndex}
@@ -1071,6 +1103,7 @@ const TWLTable = ({
                                 : {
                                     backgroundColor: 'rgba(25, 118, 210, 0.04)',
                                   },
+                            padding: '4px 8px',
                           }}
                           style={{ cursor: editingTWLink === rowIndex ? 'default' : 'cell' }}
                           onClick={editingTWLink === rowIndex ? undefined : () => handleEditTWLinkStart(rowIndex, cell || '')}
@@ -1104,7 +1137,7 @@ const TWLTable = ({
                                   cursor: 'pointer',
                                 }}
                               >
-                                {cell}
+                                {displayText}
                               </span>
                             </TWTooltip>
                           ) : (
@@ -1236,6 +1269,8 @@ const TWLTable = ({
                                       </TWTooltip>
                                     </React.Fragment>
                                   );
+                                } else if (element.type === 'linebreak') {
+                                  return <br key={elemIndex} />;
                                 } else {
                                   return (
                                     <React.Fragment key={elemIndex}>
@@ -1290,10 +1325,14 @@ const TWLTable = ({
                     }
 
                     // Default cell rendering
-                    return <TableCell key={cellIndex}>{cell}</TableCell>;
+                    return (
+                      <TableCell key={cellIndex} sx={{ padding: '4px 8px' }}>
+                        {cell}
+                      </TableCell>
+                    );
                   })}
 
-                  <TableCell sx={{ minWidth: '280px !important', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                  <TableCell sx={{ minWidth: '200px !important', textAlign: 'center', whiteSpace: 'nowrap', padding: '2px 4px' }}>
                     {/* Move row up/down buttons - only show when not searching/filtering */}
                     {!(searchTerm.trim() || Object.values(filters).some((v) => v !== null && v !== '')) && (
                       <>
@@ -1309,7 +1348,8 @@ const TWLTable = ({
                                 '&.Mui-disabled': {
                                   color: '#bdbdbd',
                                 },
-                                mr: 0.5,
+                                padding: '4px',
+                                mr: 0.25,
                               }}
                             >
                               <ArrowUpIcon fontSize="small" />
@@ -1328,7 +1368,8 @@ const TWLTable = ({
                                 '&.Mui-disabled': {
                                   color: '#bdbdbd',
                                 },
-                                mr: 0.5,
+                                padding: '4px',
+                                mr: 0.25,
                               }}
                             >
                               <ArrowDownIcon fontSize="small" />
@@ -1367,7 +1408,8 @@ const TWLTable = ({
                         sx={{
                           color: '#1976d2',
                           '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' },
-                          mr: 0.5,
+                          padding: '4px',
+                          mr: 0.25,
                         }}
                       >
                         <BookIcon fontSize="small" />
@@ -1396,7 +1438,8 @@ const TWLTable = ({
                               sx={{
                                 color: isDeleted ? '#2e7d32' : '#d32f2f',
                                 '&:hover': { backgroundColor: isDeleted ? 'rgba(46, 125, 50, 0.04)' : 'rgba(211, 47, 47, 0.04)' },
-                                mr: 0.5,
+                                padding: '4px',
+                                mr: 0.25,
                               }}
                             >
                               {isDeleted ? <RestoreIcon fontSize="small" /> : <DeleteIcon fontSize="small" />}
@@ -1413,7 +1456,8 @@ const TWLTable = ({
                         sx={{
                           color: '#2196f3',
                           '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.04)' },
-                          mr: 0.5,
+                          padding: '4px',
+                          mr: 0.25,
                         }}
                       >
                         <CopyIcon fontSize="small" />
@@ -1442,6 +1486,7 @@ const TWLTable = ({
                                 '&.Mui-disabled': {
                                   color: '#ccc',
                                 },
+                                padding: '4px',
                               }}
                             >
                               <UnlinkIcon fontSize="small" />

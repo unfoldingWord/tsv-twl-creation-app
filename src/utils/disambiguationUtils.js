@@ -67,7 +67,8 @@ export const parseDisambiguationOptions = (disambiguationText, currentTWLink, on
 
 /**
  * Render disambiguation text with clickable options
- * New format: "(kt/god, kt/falsegod)" where one is selected and others are clickable
+ * New format: Display options on separate lines with commas (no parentheses)
+ * Example: "names/judah,\nnames/judea,\nnames/kingdomofjudah"
  * Returns an array of text fragments and clickable elements
  */
 export const renderDisambiguationText = (disambiguationText, parseResult) => {
@@ -77,15 +78,10 @@ export const renderDisambiguationText = (disambiguationText, parseResult) => {
 
   const { allOptions, selectedIndex, clickableOptions } = parseResult;
 
-  // Build the rendered elements: (option1, option2, option3)
+  // Build the rendered elements without parentheses, with line breaks after commas
   const elements = [];
-  elements.push({ type: 'text', content: '(' });
 
   allOptions.forEach((option, index) => {
-    if (index > 0) {
-      elements.push({ type: 'text', content: ', ' });
-    }
-
     if (index === selectedIndex) {
       // This is the selected option - render as plain text (bold or different style)
       elements.push({
@@ -106,8 +102,13 @@ export const renderDisambiguationText = (disambiguationText, parseResult) => {
         elements.push({ type: 'text', content: option });
       }
     }
+
+    // Add comma and line break after each option except the last one
+    if (index < allOptions.length - 1) {
+      elements.push({ type: 'text', content: ',' });
+      elements.push({ type: 'linebreak' });
+    }
   });
 
-  elements.push({ type: 'text', content: ')' });
   return elements;
 };
