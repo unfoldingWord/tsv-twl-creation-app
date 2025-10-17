@@ -78,6 +78,7 @@ import { filterUnlinkedWords, removeUnlinkedWordByContent, getUnlinkedWords, nor
 import { filterDeletedRowsWithData } from './utils/deletedRows.js';
 import { addDeletedRowToServer, removeDeletedRowFromServer, getDeletedRowsFromServer } from './services/deletedRowsApi.js';
 import { getUserIdentifier } from './utils/userUtils.js';
+import { saveData, loadData } from './utils/storage.js';
 import { useUnlinkedWords } from './hooks/useUnlinkedWords.js';
 
 // External TWL processing libraries
@@ -143,12 +144,37 @@ function App() {
   // Scripture viewing state
   const [scriptureContext, setScriptureContext] = useState(null);
 
+  // Track commit and save states - initialize with false, load in useEffect
+  const [hasCommittedToDCS, setHasCommittedToDCS] = useState(false);
+  const [hasSavedToFile, setHasSavedToFile] = useState(false);
+
   // Clear backup when book changes
   useEffect(() => {
     setBackupTwlContent(null);
     setRawTextOriginalContent(null);
     setScriptureContext(null); // Clear scripture context when book changes
+
+    // Load persisted commit/save states for the new book
+    if (selectedBook?.value) {
+      const storedCommitted = loadData(`hasCommittedToDCS_${selectedBook.value}`, true);
+      const storedSaved = loadData(`hasSavedToFile_${selectedBook.value}`, true);
+      setHasCommittedToDCS(storedCommitted ?? false);
+      setHasSavedToFile(storedSaved ?? false);
+    }
   }, [selectedBook?.value]); // Only trigger on book value change, not branch
+
+  // Persist commit and save states to localStorage whenever they change
+  useEffect(() => {
+    if (selectedBook?.value) {
+      saveData(`hasCommittedToDCS_${selectedBook.value}`, hasCommittedToDCS);
+    }
+  }, [hasCommittedToDCS, selectedBook?.value]);
+
+  useEffect(() => {
+    if (selectedBook?.value) {
+      saveData(`hasSavedToFile_${selectedBook.value}`, hasSavedToFile);
+    }
+  }, [hasSavedToFile, selectedBook?.value]);
 
   // Download menu state
   const [downloadMenuAnchor, setDownloadMenuAnchor] = useState(null);
@@ -235,6 +261,16 @@ function App() {
   };
 
   /**
+   * Reset commit and save states when user makes edits
+   */
+  const resetSaveStates = () => {
+    if (hasCommittedToDCS || hasSavedToFile) {
+      setHasCommittedToDCS(false);
+      setHasSavedToFile(false);
+    }
+  };
+
+  /**
    * Validate email format
    */
   const isValidEmail = (email) => {
@@ -314,12 +350,18 @@ function App() {
         submitting: false,
         result,
       }));
+
+      // Mark as committed to DCS
+      setHasCommittedToDCS(true);
     } catch (err) {
       // Set error result
       setCommitForm((prev) => ({
         ...prev,
         submitting: false,
-        result,
+        result: {
+          success: false,
+          error: err.message,
+        },
       }));
     }
   };
@@ -427,6 +469,9 @@ function App() {
       setTwlContent(newContent);
       // Save to localStorage after deletion
       saveTwlContent(newContent);
+
+      // Reset save states since user made edits
+      resetSaveStates();
     }
   };
 
@@ -549,6 +594,9 @@ function App() {
     // Save to localStorage after unlinking
     saveTwlContent(newContent);
 
+    // Reset save states since user made edits
+    resetSaveStates();
+
     // Show success message
     setSnackbar({
       open: true,
@@ -583,6 +631,9 @@ function App() {
     setTwlContent(newContent);
     // Save to localStorage after duplication
     saveTwlContent(newContent);
+
+    // Reset save states since user made edits
+    resetSaveStates();
   };
 
   /**
@@ -622,6 +673,9 @@ function App() {
     setTwlContent(newContent);
     // Save to localStorage after disambiguation change
     saveTwlContent(newContent);
+
+    // Reset save states since user made edits
+    resetSaveStates();
   };
 
   /**
@@ -658,6 +712,9 @@ function App() {
     setTwlContent(newContent);
     // Save to localStorage after updating disambiguation
     saveTwlContent(newContent);
+
+    // Reset save states since user made edits
+    resetSaveStates();
   };
 
   /**
@@ -689,6 +746,9 @@ function App() {
           setTwlContent(normalizedContent);
           // Save to localStorage after row movement
           saveTwlContent(normalizedContent);
+
+          // Reset save states since user made edits
+          resetSaveStates();
           return;
         }
       } catch (error) {
@@ -729,6 +789,9 @@ function App() {
     setTwlContent(newContent);
     // Save to localStorage after TWLink edit
     saveTwlContent(newContent);
+
+    // Reset save states since user made edits
+    resetSaveStates();
   };
 
   /**
@@ -749,8 +812,12 @@ function App() {
         // Also track the original content for change detection
         setRawTextOriginalContent(twlContent);
       }
-      // If switching back to table from raw text, clear the tracking
+      // If switching back to table from raw text, clear the tracking and reset states if changed
       if (newViewMode === 'table' && viewMode === 'raw') {
+        // Check if content changed while in raw text mode
+        if (rawTextOriginalContent && twlContent !== rawTextOriginalContent) {
+          resetSaveStates();
+        }
         setRawTextOriginalContent(null);
       }
       setViewMode(newViewMode);
@@ -831,7 +898,8 @@ function App() {
     const hasWorkInProgress = twlContent && twlContent.trim();
     const isBookChanging = !value || !selectedBook || value.value !== selectedBook.value;
 
-    if (hasWorkInProgress && isBookChanging) {
+    // Skip warning if both states are true (already committed and saved)
+    if (hasWorkInProgress && isBookChanging && !(hasCommittedToDCS && hasSavedToFile)) {
       setPendingAction('book-change');
       setPendingData({ event, value });
       setConfirmDialogOpen(true);
@@ -848,7 +916,8 @@ function App() {
     // Check if there's work in progress
     const hasWorkInProgress = twlContent && twlContent.trim();
 
-    if (hasWorkInProgress) {
+    // Skip warning if both states are true (already committed and saved)
+    if (hasWorkInProgress && !(hasCommittedToDCS && hasSavedToFile)) {
       setPendingAction('generate-twl');
       setPendingData(null);
       setConfirmDialogOpen(true);
@@ -862,20 +931,20 @@ function App() {
    * Handle confirmation dialog actions
    */
   const handleConfirmDialogAction = async (action) => {
-    switch (action) {
-      case 'save-and-continue':
-        handleSaveCurrentWork();
-        await proceedWithPendingAction();
-        break;
-      case 'continue-without-saving':
-        await proceedWithPendingAction();
-        break;
-      case 'cancel':
-        // Do nothing, just close dialog
-        break;
+    if (action === 'save-and-continue') {
+      handleSaveCurrentWork();
+      // Close dialog first, then proceed
+      setConfirmDialogOpen(false);
+      await proceedWithPendingAction();
+    } else if (action === 'continue-without-saving') {
+      // Close dialog first, then proceed
+      setConfirmDialogOpen(false);
+      await proceedWithPendingAction();
+    } else {
+      // Cancel - just close dialog
+      setConfirmDialogOpen(false);
     }
 
-    setConfirmDialogOpen(false);
     setPendingAction(null);
     setPendingData(null);
   };
@@ -940,6 +1009,10 @@ function App() {
       setTwlContent(twlToLoad);
       // Save to localStorage after loading (pass content directly)
       saveTwlContent(twlToLoad);
+
+      // Set both states to true since this is freshly loaded content
+      setHasCommittedToDCS(true);
+      setHasSavedToFile(true);
     } catch (err) {
       setError(`Failed to load TWL: ${err.message}`);
       console.error(err);
@@ -1065,6 +1138,10 @@ function App() {
       setTwlContent(generatedTwl);
       // Save to localStorage after initial generation (pass content directly)
       saveTwlContent(generatedTwl);
+
+      // Set both states to true since this is freshly generated content
+      setHasCommittedToDCS(true);
+      setHasSavedToFile(true);
     } catch (err) {
       setError(`Failed to generate TWL: ${err.message}`);
       console.error(err);
@@ -1162,6 +1239,9 @@ function App() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    // Mark as saved to file
+    setHasSavedToFile(true);
   };
 
   /**
@@ -1185,6 +1265,9 @@ function App() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    // Mark as saved to file
+    setHasSavedToFile(true);
   };
 
   /**
@@ -1996,13 +2079,15 @@ function App() {
           <Button onClick={handleCommitModalClose} disabled={commitForm.submitting}>
             Cancel
           </Button>
-          <Button
-            onClick={handleCommitSubmit}
-            variant="contained"
-            disabled={commitForm.submitting || !commitForm.name.trim() || !commitForm.email.trim() || commitForm.result?.success}
-          >
-            {commitForm.submitting ? 'Committing...' : 'Commit & Create PR'}
-          </Button>
+          {commitForm.result?.success ? (
+            <Button onClick={handleCommitModalClose} variant="contained">
+              Close
+            </Button>
+          ) : (
+            <Button onClick={handleCommitSubmit} variant="contained" disabled={commitForm.submitting || !commitForm.name.trim() || !commitForm.email.trim()}>
+              {commitForm.submitting ? 'Committing...' : 'Commit & Create PR'}
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
 
@@ -2010,21 +2095,58 @@ function App() {
       <Dialog open={confirmDialogOpen} onClose={() => handleConfirmDialogAction('cancel')} maxWidth="sm" fullWidth>
         <DialogTitle>{pendingAction === 'book-change' ? 'Change Book' : 'Generate New TWL?'}</DialogTitle>
         <DialogContent>
-          <Typography variant="body1" sx={{ mb: 2 }}>
-            You have work in progress. What would you like to do?
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {pendingAction === 'book-change' ? 'Changing the book will clear your current work.' : 'Generating a new TWL will replace your current work.'}
-          </Typography>
+          {/* Different messages based on commit and save states */}
+          {hasCommittedToDCS && !hasSavedToFile ? (
+            <>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                <strong>You have not saved your work to a file.</strong>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                While you have committed your work to DCS, it is recommended to also save a local file for reference. You can save to a file now before continuing.
+              </Typography>
+            </>
+          ) : !hasCommittedToDCS && hasSavedToFile ? (
+            <>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                <strong>You have not committed your work to DCS.</strong>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                You have saved your work to a local file. If you want to commit it to DCS, you will need to cancel, load the saved file, and then commit. Otherwise, you can
+                continue and your changes will be lost.
+              </Typography>
+            </>
+          ) : !hasCommittedToDCS && !hasSavedToFile ? (
+            <>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                <strong>You have neither committed to DCS nor saved to a file.</strong>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                You can save your work to a file now to preserve it, or continue without saving to discard your changes.
+              </Typography>
+            </>
+          ) : (
+            // This shouldn't happen as we don't show dialog when both are true, but just in case
+            <>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                You have work in progress. What would you like to do?
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {pendingAction === 'book-change' ? 'Changing the book will clear your current work.' : 'Generating a new TWL will replace your current work.'}
+              </Typography>
+            </>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => handleConfirmDialogAction('cancel')}>Cancel</Button>
           <Button onClick={() => handleConfirmDialogAction('continue-without-saving')} color="warning">
-            Continue Without Saving
+            Continue
           </Button>
-          <Button onClick={() => handleConfirmDialogAction('save-and-continue')} variant="contained">
-            Save and Continue
-          </Button>
+          {/* Only show "Save to File and Continue" if user hasn't saved yet */}
+          {!hasSavedToFile && (
+            <Button onClick={() => handleConfirmDialogAction('save-and-continue')} variant="contained">
+              Save to File and Continue
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
 
