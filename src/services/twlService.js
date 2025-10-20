@@ -140,17 +140,34 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
           }
         }
 
-        // Special handling: if TWLinks differ and generated has NO disambiguation, create one
+        // Special handling: if TWLinks differ, handle disambiguation
         if (impTWLink !== genTWLink && disambiguationIndex >= 0) {
           const genDisambigValue = generatedRow[disambiguationIndex] || '';
-          // Check if generated row has no disambiguation (empty or whitespace only)
+          const impPath = extractTWLinkPath(impTWLink);
+          const genPath = extractTWLinkPath(genTWLink);
+
           if (!genDisambigValue.trim()) {
-            const impPath = extractTWLinkPath(impTWLink);
-            const genPath = extractTWLinkPath(genTWLink);
-            // Create disambiguation list with both paths
+            // Generated has NO disambiguation - create one with both paths
             const newDisambiguation = `(${impPath}, ${genPath})`;
             finalRows[finalRowIndex][disambiguationIndex] = newDisambiguation;
             console.log(`  TWLinks differ (${impTWLink} vs ${genTWLink}) and no disambiguation - created: ${newDisambiguation}`);
+          } else {
+            // Generated HAS disambiguation - add imported path to the beginning if not already present
+            // Parse existing disambiguation: "(path1, path2)" -> ["path1", "path2"]
+            const match = genDisambigValue.match(/^\(([^)]+)\)$/);
+            if (match) {
+              const existingPaths = match[1].split(',').map(p => p.trim());
+
+              // Only add impPath if it's not already in the list
+              if (!existingPaths.includes(impPath)) {
+                const newPaths = [impPath, ...existingPaths];
+                const newDisambiguation = `(${newPaths.join(', ')})`;
+                finalRows[finalRowIndex][disambiguationIndex] = newDisambiguation;
+                console.log(`  TWLinks differ (${impTWLink} vs ${genTWLink}) - added imported path to disambiguation: ${newDisambiguation}`);
+              } else {
+                console.log(`  TWLinks differ but imported path already in disambiguation: ${genDisambigValue}`);
+              }
+            }
           }
         }
 
