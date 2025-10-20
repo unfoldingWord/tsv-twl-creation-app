@@ -74,6 +74,17 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
     return `${reference}|${origWords}|${occurrence}`;
   };
 
+  // Helper function to extract last two parts of TWLink path
+  // e.g., "rc://*/tw/dict/bible/other/ruler" -> "other/ruler"
+  const extractTWLinkPath = (twLink) => {
+    if (!twLink) return '';
+    const parts = twLink.split('/');
+    if (parts.length >= 2) {
+      return parts.slice(-2).join('/');
+    }
+    return twLink;
+  };
+
   // Process each generated row - maintain their order
   generatedRows.forEach((generatedRow, genIndex) => {
     const genKey = createMatchKey(generatedRow, referenceIndex, origWordsIndex, occurrenceIndex);
@@ -126,6 +137,20 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
         for (let col = 6; col < generatedHeaders.length; col++) {
           if (col < generatedRow.length) {
             finalRows[finalRowIndex][col] = generatedRow[col];
+          }
+        }
+
+        // Special handling: if TWLinks differ and generated has NO disambiguation, create one
+        if (impTWLink !== genTWLink && disambiguationIndex >= 0) {
+          const genDisambigValue = generatedRow[disambiguationIndex] || '';
+          // Check if generated row has no disambiguation (empty or whitespace only)
+          if (!genDisambigValue.trim()) {
+            const impPath = extractTWLinkPath(impTWLink);
+            const genPath = extractTWLinkPath(genTWLink);
+            // Create disambiguation list with both paths
+            const newDisambiguation = `(${impPath}, ${genPath})`;
+            finalRows[finalRowIndex][disambiguationIndex] = newDisambiguation;
+            console.log(`  TWLinks differ (${impTWLink} vs ${genTWLink}) and no disambiguation - created: ${newDisambiguation}`);
           }
         }
 
