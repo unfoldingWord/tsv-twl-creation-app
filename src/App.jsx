@@ -63,7 +63,7 @@ import UnlinkedWordsManager from './components/UnlinkedWordsManager.jsx';
 import ScriptureViewer from './components/ScriptureViewer.jsx';
 import packageInfo from '../package.json';
 import { fetchTWLContent } from './services/apiService.js';
-import { mergeExistingTwls } from './services/twlService.js';
+import { mergeExistingTwls, mergeExistingTwlsGeneratedFirst } from './services/twlService.js';
 import {
   isValidTsvStructure,
   isValidExtendedTsvStructure,
@@ -198,6 +198,9 @@ function App() {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState(null); // 'book-change' or 'generate-twl'
   const [pendingData, setPendingData] = useState(null); // Data related to the pending action
+
+  // Merge order preference state
+  const [ignoreFetchedOrder, setIgnoreFetchedOrder] = useState(false);
 
   // Update notification state
   const [updateNotification, setUpdateNotification] = useState({
@@ -1111,7 +1114,14 @@ function App() {
 
           console.log('Existing TWL with GLQuotes (after adding GLQuote columns):', convertGl2OlResults.output);
 
-          generatedTwl = await mergeExistingTwls(generatedTwl, convertGl2OlResults.output, dcsHost);
+          // Use the appropriate merge function based on user preference
+          if (ignoreFetchedOrder) {
+            console.log('Using GENERATED-FIRST merge (ignoring fetched order)');
+            generatedTwl = await mergeExistingTwlsGeneratedFirst(generatedTwl, convertGl2OlResults.output, dcsHost);
+          } else {
+            console.log('Using FETCHED-FIRST merge (default)');
+            generatedTwl = await mergeExistingTwls(generatedTwl, convertGl2OlResults.output, dcsHost);
+          }
         } catch (error) {
           console.error('Error in convertGLQuotes2OLQuotes for existing TWL:', error);
           throw error;
@@ -1792,6 +1802,17 @@ function App() {
                   Invalid TWL format. Must have exactly 6 columns, or 7-11 columns with proper headers (Reference, ID, Tags, OrigWords, Occurrence, TWLink, GLQuote, GLOccurrence,
                   [Variant of], [Disambiguation], [Merge Status]).
                 </Alert>
+              )}
+
+              {/* Merge order preference checkbox */}
+              {existingTwlContent.trim() && existingTwlValid && (
+                <Box sx={{ mt: 2 }}>
+                  <FormControlLabel
+                    control={<Checkbox checked={ignoreFetchedOrder} onChange={(e) => setIgnoreFetchedOrder(e.target.checked)} />}
+                    label="Ignore fetched TWLs' sort order (keep generated order, insert fetched TWLs based on context)"
+                    sx={{ color: 'rgba(0, 0, 0, 0.87)' }}
+                  />
+                </Box>
               )}
 
               {/* Generate/Load TWLs Button */}
