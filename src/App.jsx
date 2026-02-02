@@ -194,6 +194,13 @@ function App() {
     result: null,
   });
 
+  // Local form input state for commit modal (to avoid re-renders on every keystroke)
+  const [commitFormInputs, setCommitFormInputs] = useState({
+    name: '',
+    email: '',
+    message: '',
+  });
+
   // Confirmation dialog state for work in progress
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState(null); // 'book-change' or 'generate-twl'
@@ -243,6 +250,12 @@ function App() {
       submitting: false,
       result: null,
     });
+    // Initialize local input state
+    setCommitFormInputs({
+      name: savedName,
+      email: savedEmail,
+      message: '',
+    });
     setCommitModalOpen(true);
   };
 
@@ -257,10 +270,22 @@ function App() {
   };
 
   /**
-   * Handle form input changes
+   * Handle form input changes (local state only, no re-render of main component)
    */
-  const handleCommitFormChange = (field, value) => {
-    setCommitForm((prev) => ({ ...prev, [field]: value }));
+  const handleCommitFormInputChange = (field, value) => {
+    setCommitFormInputs((prev) => ({ ...prev, [field]: value }));
+  };
+
+  /**
+   * Handle blur event - sync local input state to main form state
+   */
+  const handleCommitFormInputBlur = () => {
+    setCommitForm((prev) => ({
+      ...prev,
+      name: commitFormInputs.name,
+      email: commitFormInputs.email,
+      message: commitFormInputs.message,
+    }));
   };
 
   /**
@@ -285,7 +310,7 @@ function App() {
    * Handle DCS commit submission
    */
   const handleCommitSubmit = async () => {
-    const { name, email, message } = commitForm;
+    const { name, email, message } = commitFormInputs;
 
     // Clear previous errors
     setCommitForm((prev) => ({ ...prev, errors: {} }));
@@ -1809,7 +1834,7 @@ function App() {
                 <Box sx={{ mt: 2 }}>
                   <FormControlLabel
                     control={<Checkbox checked={ignoreFetchedOrder} onChange={(e) => setIgnoreFetchedOrder(e.target.checked)} />}
-                    label="Ignore fetched TWLs' sort order (keep generated order, insert fetched TWLs based on context)"
+                    label="Ignore fetched TWLs' sort order (keep generated order based on ULT word order, insert fetched TWLs based on context)"
                     sx={{ color: 'rgba(0, 0, 0, 0.87)' }}
                   />
                 </Box>
@@ -2044,8 +2069,9 @@ function App() {
               type="text"
               fullWidth
               variant="outlined"
-              value={commitForm.name}
-              onChange={(e) => setCommitForm((prev) => ({ ...prev, name: e.target.value }))}
+              value={commitFormInputs.name}
+              onChange={(e) => handleCommitFormInputChange('name', e.target.value)}
+              onBlur={handleCommitFormInputBlur}
               error={!!commitForm.errors.name}
               helperText={commitForm.errors.name}
               sx={{ mb: 2 }}
@@ -2056,8 +2082,9 @@ function App() {
               type="email"
               fullWidth
               variant="outlined"
-              value={commitForm.email}
-              onChange={(e) => setCommitForm((prev) => ({ ...prev, email: e.target.value }))}
+              value={commitFormInputs.email}
+              onChange={(e) => handleCommitFormInputChange('email', e.target.value)}
+              onBlur={handleCommitFormInputBlur}
               error={!!commitForm.errors.email}
               helperText={commitForm.errors.email}
               sx={{ mb: 2 }}
@@ -2070,8 +2097,9 @@ function App() {
               variant="outlined"
               multiline
               rows={3}
-              value={commitForm.message}
-              onChange={(e) => setCommitForm((prev) => ({ ...prev, message: e.target.value }))}
+              value={commitFormInputs.message}
+              onChange={(e) => handleCommitFormInputChange('message', e.target.value)}
+              onBlur={handleCommitFormInputBlur}
               placeholder={`Update TWL for ${selectedBook?.value?.toUpperCase() || 'BOOK'}`}
             />
             {commitForm.submitting && (
