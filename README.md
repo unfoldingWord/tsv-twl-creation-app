@@ -57,6 +57,32 @@
 - **6-column format**: For merging with newly generated TWLs
 - **8-12 column format**: Extended format files load directly into table view
 
+#### 🔄 Merge Order Option (For 6-Column Imports)
+
+When you import a 6-column TWL file, a checkbox appears to control how the app merges the fetched content with newly generated TWLs:
+
+**Default Behavior (Checkbox Unchecked):**
+- ✅ **Keep Fetched TWLs' Sort Order** (recommended for updates)
+- The fetched/existing TWLs maintain their original order from DCS
+- New generated TWLs are inserted **before or after** matching existing TWLs based on context
+- Preserves the structure of previously generated lists
+- **💡 Use this when**: Updating a recently generated list with new changes or improvements
+
+**Alternative Behavior (Checkbox Checked):**
+- 🔄 **Ignore Fetched TWLs' Sort Order** (recommended for first-time generation)
+- The generated TWLs maintain their order (as created by the generation algorithm)
+- Fetched TWLs that don't match generated ones are inserted based on their **Bible reference position** in the generated list
+- Creates a completely new sort order based on the generation algorithm
+- **💡 Use this when**: Generating TWLs for a book that **has never had automated TWLs generated** before
+
+**🎯 Key Difference:**
+| Scenario | Use Setting |
+|----------|-------------|
+| **First-time generation** for a book | ✅ **Check** "Ignore fetched order" |
+| **Updating** an existing TWL with new changes | ❌ **Uncheck** (default) |
+| **Re-generating** from scratch | ✅ **Check** "Ignore fetched order" |
+| **Preserving** existing sort preferences | ❌ **Uncheck** (default) |
+
 ### 3️⃣ ⚡ Generate or Load TWL Content
 
 **Generate TWLs** 🛠️: Creates new TWL entries automatically from USFM using the twl-generator library  
@@ -262,6 +288,9 @@ The app features an advanced deletion system that remembers your choices across 
 1. **📖 Select your target Bible book**
 2. **🌿 Choose appropriate branch** (if fetching from DCS)
 3. **📥 Import existing TWL content** (if available) using paste, upload, or fetch
+   - **⚠️ Important Merge Strategy Decision**: After importing, you'll see a checkbox to "Ignore fetched TWLs' sort order"
+   - **First-time generation?** (no automated TWLs exist yet) → ✅ **Check the box**
+   - **Updating recent changes?** (has automated TWLs) → ❌ **Leave unchecked** (default)
 4. **⚡ Generate new TWLs** or load extended format content
 
 ### 🔍 Phase 2: Review and Edit

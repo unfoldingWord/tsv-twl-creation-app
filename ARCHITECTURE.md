@@ -123,6 +123,32 @@ Complex state logic is extracted into custom hooks:
 - **Features**: Pointer-based merging algorithm
 - **Benefits**: Isolated complex logic, easier to debug and test
 
+**Merge Strategies:**
+
+The `twlService.js` module implements **two different merge algorithms** that can be selected based on user preference:
+
+1. **`mergeExistingTwls()` - Fetched-First Approach (Default)**
+   - **When to use**: When updating a recently generated TWL or preserving existing sort order
+   - **How it works**: Uses fetched/existing TWLs as the foundation, maintaining their original order
+   - **New content**: Newly generated TWLs are inserted before or after matched existing entries
+   - **Result**: Preserves the structure of previously created lists
+   - **Merge Status**: Existing rows marked as "MERGED" (matched) or "OLD" (unmatched); generated rows marked as "NEW"
+
+2. **`mergeExistingTwlsGeneratedFirst()` - Generated-First Approach**
+   - **When to use**: When generating TWLs for a book that has **never had automated TWLs generated** before
+   - **How it works**: Uses generated TWLs as the foundation, maintaining their generation order
+   - **Existing content**: Fetched TWLs that don't match are inserted based on their Bible reference position
+   - **Result**: Creates a new sort order based on the generation algorithm
+   - **Merge Status**: Generated rows marked as "MERGED" (matched) or "NEW" (unmatched); fetched rows marked as "OLD"
+
+**Implementation Details:**
+
+- Both algorithms handle **disambiguation merging**: When a fetched and generated row match but have different TWLinks, the app intelligently merges the disambiguation options
+- **ID and TWLink preservation**: Depending on the algorithm, either fetched or generated data is used for key fields
+- **Reference-based insertion**: Uses `compareReferences()` from `tsvUtils.js` to determine insertion positions based on Bible book and chapter:verse ordering
+
+- **Benefits**: Isolated complex logic, easier to debug and test
+
 ### Utilities
 
 #### tsvUtils.js
