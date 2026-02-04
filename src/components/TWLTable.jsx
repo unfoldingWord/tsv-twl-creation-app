@@ -303,12 +303,22 @@ const TWLTable = ({
 
     // Apply search filter
     if (searchTerm.trim()) {
-      const searchLower = searchTerm.toLowerCase();
+      const trimmedSearch = searchTerm.trim();
+      const searchLower = trimmedSearch.toLowerCase();
+      const isReferencePrefixSearch = /^[0-9]+:$/.test(trimmedSearch);
+      const isReferenceSuffixSearch = /^:[0-9]+$/.test(trimmedSearch);
       filtered = filtered.filter((row) => {
         // Reference (exact match) - search against the display version (without DELETED prefix)
         if (referenceIndex >= 0 && row[referenceIndex]) {
           const displayReference = row[referenceIndex].startsWith('DELETED ') ? row[referenceIndex].substring(8) : row[referenceIndex];
-          if (displayReference.toLowerCase() === searchLower) {
+          const displayReferenceLower = displayReference.toLowerCase();
+          if (isReferencePrefixSearch && displayReferenceLower.startsWith(searchLower)) {
+            return true;
+          }
+          if (isReferenceSuffixSearch && displayReferenceLower.endsWith(searchLower)) {
+            return true;
+          }
+          if (!isReferencePrefixSearch && !isReferenceSuffixSearch && displayReferenceLower === searchLower) {
             return true;
           }
         }
