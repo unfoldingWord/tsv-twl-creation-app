@@ -307,7 +307,15 @@ const TWLTable = ({
       const searchLower = trimmedSearch.toLowerCase();
       const isReferencePrefixSearch = /^[0-9]+:$/.test(trimmedSearch);
       const isReferenceSuffixSearch = /^:[0-9]+$/.test(trimmedSearch);
+      const isMergeStatusOnlySearch = trimmedSearch === 'OLD' || trimmedSearch === 'MERGED' || trimmedSearch === 'NEW';
+      
       filtered = filtered.filter((row) => {
+        // Special case: If search is exactly "OLD", "MERGED", or "NEW" (uppercase), only search Merge Status
+        if (isMergeStatusOnlySearch) {
+          return mergeStatusIndex >= 0 && row[mergeStatusIndex] === trimmedSearch;
+        }
+        
+        // Normal search across all columns
         // Reference (exact match) - search against the display version (without DELETED prefix)
         if (referenceIndex >= 0 && row[referenceIndex]) {
           const displayReference = row[referenceIndex].startsWith('DELETED ') ? row[referenceIndex].substring(8) : row[referenceIndex];
@@ -334,7 +342,7 @@ const TWLTable = ({
         if (glQuoteIndex >= 0 && row[glQuoteIndex] && row[glQuoteIndex].toLowerCase().includes(searchLower)) {
           return true;
         }
-        // Merge Status (exact match, case sensitive)
+        // Merge Status (exact match, case sensitive) - only when not in merge-status-only mode
         if (mergeStatusIndex >= 0 && row[mergeStatusIndex] && row[mergeStatusIndex] === searchTerm) {
           return true;
         }
