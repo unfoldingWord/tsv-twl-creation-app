@@ -1354,7 +1354,7 @@ const TWLTable = ({
                     {/* Move row up/down buttons - only show when not searching/filtering */}
                     {!(searchTerm.trim() || Object.values(filters).some((v) => v !== null && v !== '')) && (
                       <>
-                        <Tooltip title={canMoveRowUp(rowIndex) ? 'Move row up (within same reference)' : 'Cannot move up (first row of reference)'}>
+                        <Tooltip title={canMoveRowUp(rowIndex) ? 'Move row up (within same reference)' : 'Cannot move up (first row of reference)'} placement="top" arrow>
                           <span>
                             <IconButton
                               onClick={() => handleMoveRowUp(rowIndex)}
@@ -1374,7 +1374,7 @@ const TWLTable = ({
                             </IconButton>
                           </span>
                         </Tooltip>
-                        <Tooltip title={canMoveRowDown(rowIndex) ? 'Move row down (within same reference)' : 'Cannot move down (last row of reference)'}>
+                        <Tooltip title={canMoveRowDown(rowIndex) ? 'Move row down (within same reference)' : 'Cannot move down (last row of reference)'} placement="top" arrow>
                           <span>
                             <IconButton
                               onClick={() => handleMoveRowDown(rowIndex)}
@@ -1396,7 +1396,7 @@ const TWLTable = ({
                         </Tooltip>
                       </>
                     )}
-                    <Tooltip title="Show Scripture Context">
+                    <Tooltip title="Show Scripture Context" placement="top" arrow>
                       <IconButton
                         onClick={() => {
                           if (onShowScripture) {
@@ -1447,7 +1447,7 @@ const TWLTable = ({
                       }
 
                       return (
-                        <Tooltip title={tooltipTitle}>
+                        <Tooltip title={tooltipTitle} placement="top" arrow>
                           <span>
                             <IconButton
                               onClick={() => handleSoftDelete(getActualRowIndex(rowIndex))}
@@ -1466,7 +1466,7 @@ const TWLTable = ({
                         </Tooltip>
                       );
                     })()}
-                    <Tooltip title="Duplicate this row">
+                    <Tooltip title="Duplicate this row" placement="top" arrow>
                       <IconButton
                         onClick={() => handleDuplicateRow(getActualRowIndex(rowIndex))}
                         size="small"
@@ -1492,7 +1492,7 @@ const TWLTable = ({
                       const tooltipTitle = isAlreadyUnlinked ? 'This OrigWords & TWLink combination has already been unlinked' : 'Unlink this Word';
 
                       return (
-                        <Tooltip title={tooltipTitle}>
+                        <Tooltip title={tooltipTitle} placement="top" arrow>
                           <span>
                             <IconButton
                               onClick={() => onUnlinkRow(getActualRowIndex(rowIndex))}
