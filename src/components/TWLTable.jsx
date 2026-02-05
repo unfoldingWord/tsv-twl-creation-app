@@ -193,7 +193,7 @@ const TWLTable = ({
     };
 
     return (
-      <Tooltip {...props} title={isLoading ? 'Loading...' : title || 'Article not found'} onOpen={fetchTitle} arrow>
+      <Tooltip {...props} title={isLoading ? 'Loading...' : title || 'Article not found'} onOpen={fetchTitle} arrow placement="top">
         {children}
       </Tooltip>
     );
@@ -1242,7 +1242,7 @@ const TWLTable = ({
                             }}
                           >
                             {onClearDisambiguation && (
-                              <Tooltip title={isDone ? 'Unmark as done (restore choices)' : 'Mark as done (will disable these choices)'} arrow>
+                              <Tooltip title={isDone ? 'Unmark as done (restore choices)' : 'Mark as done (will disable these choices)'} arrow placement="top">
                                 <Checkbox
                                   checked={isDone}
                                   size="small"
@@ -1320,7 +1320,7 @@ const TWLTable = ({
                           }}
                         >
                           {onClearDisambiguation && (
-                            <Tooltip title={isDone ? 'Unmark as done' : 'Mark as done'} arrow>
+                            <Tooltip title={isDone ? 'Unmark as done' : 'Mark as done'} arrow placement="top">
                               <Checkbox
                                 checked={isDone}
                                 size="small"
