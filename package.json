@@ -1,7 +1,7 @@
 {
   "name": "tsv-twl-creation-app",
   "private": true,
-  "version": "1.4.13",
+  "version": "1.4.14",
   "type": "module",
   "scripts": {
     "dev": "netlify dev",
@@ -12,30 +12,30 @@
     "functions:serve": "netlify functions:serve"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.600.0",
-    "@aws-sdk/lib-dynamodb": "^3.600.0",
-    "@emotion/react": "^11.11.4",
-    "@emotion/styled": "^11.11.5",
-    "@mui/icons-material": "^5.15.15",
-    "@mui/material": "^5.15.15",
+    "@aws-sdk/client-dynamodb": "^3.988.0",
+    "@aws-sdk/lib-dynamodb": "^3.988.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^5.18.0",
+    "@mui/material": "^5.18.0",
     "jszip": "^3.10.1",
-    "marked": "^16.2.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "marked": "^16.4.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-icons": "^5.5.0",
-    "styled-components": "^6.1.19",
+    "styled-components": "^6.3.9",
     "tsv-quote-converters": "^1.1.18",
     "twl-generator": "1.4.12",
     "usfm-js": "^3.4.3"
   },
   "devDependencies": {
-    "@types/react": "^18.2.66",
-    "@types/react-dom": "^18.2.22",
-    "@vitejs/plugin-react": "^4.2.1",
-    "eslint": "^8.57.0",
-    "eslint-plugin-react": "^7.34.1",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "eslint-plugin-react-refresh": "^0.4.6",
-    "vite": "^5.2.0"
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-refresh": "^0.4.26",
+    "vite": "^5.4.21"
   }
 }
