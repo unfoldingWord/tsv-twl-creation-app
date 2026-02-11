@@ -1,0 +1,2 @@
+patchedDependencies:
+  twl-generator@1.4.12: patches/twl-generator@1.4.12.patch
