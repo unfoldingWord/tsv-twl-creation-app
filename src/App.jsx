@@ -710,36 +710,47 @@ function App() {
    * Handle disambiguation done/undone toggle
    */
   const handleClearDisambiguation = (rowIndex, cellIndex, newDisambiguation, action) => {
-    if (!twlContent) return;
-
-    // Create backup before making changes
-    createBackup();
-
-    const lines = twlContent.split('\n');
-    if (lines.length === 0) return;
-
-    const dataRowIndex = rowIndex + 1; // Add 1 to skip header row
-
-    if (dataRowIndex >= lines.length) return;
-
-    // Parse the target row
-    const row = lines[dataRowIndex].split('\t');
-
-    // If newDisambiguation is provided, use it; otherwise clear the field (fallback to old behavior)
-    if (newDisambiguation !== undefined) {
-      row[cellIndex] = newDisambiguation;
-    } else {
-      row[cellIndex] = '';
+    // Create backup before making changes (only once for bulk operations)
+    if (!handleClearDisambiguation.backupCreated) {
+      createBackup();
+      handleClearDisambiguation.backupCreated = true;
+      // Reset the flag after a brief delay to allow for bulk operations
+      setTimeout(() => {
+        handleClearDisambiguation.backupCreated = false;
+      }, 100);
     }
 
-    // Update the content
-    lines[dataRowIndex] = row.join('\t');
-    let newContent = lines.join('\n');
-    // Normalize column count to ensure consistency
-    newContent = normalizeTsvColumnCount(newContent);
-    setTwlContent(newContent);
-    // Save to localStorage after updating disambiguation
-    saveTwlContent(newContent);
+    setTwlContent((prevContent) => {
+      if (!prevContent) return prevContent;
+
+      const lines = prevContent.split('\n');
+      if (lines.length === 0) return prevContent;
+
+      const dataRowIndex = rowIndex + 1; // Add 1 to skip header row
+
+      if (dataRowIndex >= lines.length) return prevContent;
+
+      // Parse the target row
+      const row = lines[dataRowIndex].split('\t');
+
+      // If newDisambiguation is provided, use it; otherwise clear the field (fallback to old behavior)
+      if (newDisambiguation !== undefined) {
+        row[cellIndex] = newDisambiguation;
+      } else {
+        row[cellIndex] = '';
+      }
+
+      // Update the content
+      lines[dataRowIndex] = row.join('\t');
+      let newContent = lines.join('\n');
+      // Normalize column count to ensure consistency
+      newContent = normalizeTsvColumnCount(newContent);
+      
+      // Save to localStorage after updating disambiguation
+      saveTwlContent(newContent);
+      
+      return newContent;
+    });
 
     // Reset save states since user made edits
     resetSaveStates();
@@ -1071,6 +1082,8 @@ function App() {
       // Add GLQuote and GLOccurrence columns
       // let generatedTwl = addGLQuoteColumns(response.matchedTsv);
       let generatedTwl = response.matchedTsv;
+
+      console.log('Generated TWL after adding GLQuote columns:', generatedTwl);
 
       try {
         const convertResponse = await convertGLQuotes2OLQuotes({

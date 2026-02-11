@@ -82,6 +82,9 @@ const TWLTable = ({
   // State for tracking which TWLink field is being edited
   const [editingTWLink, setEditingTWLink] = useState(null);
   const [editValue, setEditValue] = useState('');
+  
+  // State for bulk disambiguation marking
+  const [markAllDisambiguations, setMarkAllDisambiguations] = useState(false);
 
   // Function to check if a word combination is already unlinked
   const isWordAlreadyUnlinked = (origWords, twLink) => {
@@ -476,6 +479,11 @@ const TWLTable = ({
     setPage(0);
   }, [searchTerm, filters]);
 
+  // Reset bulk disambiguation checkbox when page changes
+  useEffect(() => {
+    setMarkAllDisambiguations(false);
+  }, [page, searchTerm, filters]);
+
   const clearSearch = () => {
     setSearchTerm('');
   };
@@ -560,6 +568,36 @@ const TWLTable = ({
         const doneDisambiguation = `DONE ${currentDisambiguation}`;
         onClearDisambiguation(rowIndex, cellIndex, doneDisambiguation, 'done');
       }
+    }
+  };
+
+  // Handler for bulk disambiguation marking/unmarking
+  const handleBulkDisambiguationToggle = (checked) => {
+    setMarkAllDisambiguations(checked);
+    
+    if (onClearDisambiguation && disambiguationIndex >= 0) {
+      // Process all rows on the current page
+      paginatedRows.forEach((row, paginatedRowIndex) => {
+        const actualRowIndex = getActualRowIndex(paginatedRowIndex);
+        const currentDisambiguation = row[disambiguationIndex] || '';
+        
+        // Only process rows that have disambiguation content (and thus would have a checkbox)
+        if (currentDisambiguation && currentDisambiguation.trim() !== '') {
+          if (checked) {
+            // Mark as done if not already done
+            if (!currentDisambiguation.startsWith('DONE ')) {
+              const doneDisambiguation = `DONE ${currentDisambiguation}`;
+              onClearDisambiguation(actualRowIndex, disambiguationIndex, doneDisambiguation, 'done');
+            }
+          } else {
+            // Unmark as done if currently done
+            if (currentDisambiguation.startsWith('DONE ')) {
+              const undoneDisambiguation = currentDisambiguation.substring(5);
+              onClearDisambiguation(actualRowIndex, disambiguationIndex, undoneDisambiguation, 'undone');
+            }
+          }
+        }
+      });
     }
   };
 
@@ -831,6 +869,21 @@ const TWLTable = ({
         >
           Filter
         </Button>
+        
+        {/* Bulk Disambiguation Marking Checkbox */}
+        {disambiguationIndex >= 0 && (
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={markAllDisambiguations}
+                onChange={(e) => handleBulkDisambiguationToggle(e.target.checked)}
+                size="small"
+              />
+            }
+            label="Mark all Disambiguations on Page as Done"
+            sx={{ ml: 1 }}
+          />
+        )}
       </Box>
 
       {/* Filter Menu */}

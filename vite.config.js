@@ -13,6 +13,12 @@ export default defineConfig({
     global: 'globalThis',
   },
   optimizeDeps: {
-    exclude: ['fsevents']
+    exclude: ['fsevents'],
+    include: ['twl-generator', 'tsv-quote-converters']
+  },
+  build: {
+    commonjsOptions: {
+      include: [/twl-generator/, /tsv-quote-converters/, /node_modules/]
+    }
   }
 });
