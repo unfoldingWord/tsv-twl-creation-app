@@ -1,0 +1,21 @@
+diff --git a/src/utils/usfm-alignment-remover.js b/src/utils/usfm-alignment-remover.js
+index cbf948b559def2339b993cf6c206be3df2ea9e3c..dfa9547a045ace031acae43e9061a9a896aa0c8a 100644
+--- a/src/utils/usfm-alignment-remover.js
++++ b/src/utils/usfm-alignment-remover.js
+@@ -17,8 +17,14 @@ function decodeBase64(base64String) {
+   if (isNode) {
+     return Buffer.from(base64String, 'base64').toString('utf-8');
+   }
+-  // Browser implementation
+-  return atob(base64String);
++  // Browser implementation - properly handle UTF-8 characters
++  const binaryString = atob(base64String);
++  const bytes = new Uint8Array(binaryString.length);
++  for (let i = 0; i < binaryString.length; i++) {
++    bytes[i] = binaryString.charCodeAt(i);
++  }
++  const decoder = new TextDecoder('utf-8');
++  return decoder.decode(bytes);
+ }
+ 
+ // Note: This version doesn't use usfm-js to avoid external dependencies
