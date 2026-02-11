@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  twl-generator@1.4.12:
+    hash: ebffad566a3734916124322c021f5cf8ff924f82982a32cfdff4c6e4c546eb79
+    path: patches/twl-generator@1.4.12.patch
+
 importers:
 
   .:
@@ -49,7 +54,7 @@ importers:
         version: 1.1.18(@babel/core@7.28.3)
       twl-generator:
         specifier: 1.4.12
-        version: 1.4.12(@babel/core@7.28.3)(react@18.3.1)
+        version: 1.4.12(patch_hash=ebffad566a3734916124322c021f5cf8ff924f82982a32cfdff4c6e4c546eb79)(@babel/core@7.28.3)(react@18.3.1)
       usfm-js:
         specifier: ^3.4.3
         version: 3.4.3
@@ -6173,7 +6178,7 @@ snapshots:
       - debug
       - supports-color
 
-  twl-generator@1.4.12(@babel/core@7.28.3)(react@18.3.1):
+  twl-generator@1.4.12(patch_hash=ebffad566a3734916124322c021f5cf8ff924f82982a32cfdff4c6e4c546eb79)(@babel/core@7.28.3)(react@18.3.1):
     dependencies:
       compromise: 14.14.5
       csv-parse: 5.6.0
