@@ -207,7 +207,7 @@ function App() {
   const [pendingData, setPendingData] = useState(null); // Data related to the pending action
 
   // Merge order preference state
-  const [ignoreFetchedOrder, setIgnoreFetchedOrder] = useState(false);
+  const [ignoreFetchedOrder, setIgnoreFetchedOrder] = useState(true); // Default to true based on user feedback
 
   // Update notification state
   const [updateNotification, setUpdateNotification] = useState({
