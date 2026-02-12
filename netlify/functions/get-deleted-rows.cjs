@@ -38,6 +38,9 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'book is required' }) };
     }
 
+    console.log('🗑️  [DELETE-ROWS] Fetching deleted rows for book:', book);
+    console.log('🗑️  [DELETE-ROWS] Table:', process.env.TWL_DYNAMODB_DELETED_TABLE_NAME);
+
     const result = await docClient.send(new QueryCommand({
       TableName: process.env.TWL_DYNAMODB_DELETED_TABLE_NAME,
       KeyConditionExpression: 'book = :b',
@@ -45,6 +48,8 @@ exports.handler = async (event) => {
         ':b': book.trim().toLowerCase(),
       },
     }));
+
+    console.log('🗑️  [DELETE-ROWS] Raw DynamoDB result count:', result.Items?.length || 0);
 
     const items = (result.Items || []).map((it) => ({
       book: it.book,
@@ -55,6 +60,20 @@ exports.handler = async (event) => {
       sortKey: it.sortKey,
       dateAdded: it.dateAdded,
     }));
+
+    console.log('🗑️  [DELETE-ROWS] Returning', items.length, 'deleted rows');
+    if (items.length > 0) {
+      console.log('🗑️  [DELETE-ROWS] Sample item:', JSON.stringify(items[0], null, 2));
+      // Filter to show only 1:3 references for debugging
+      const filtered1_3 = items.filter(it => it.reference && it.reference.startsWith('1:3'));
+      if (filtered1_3.length > 0) {
+        console.log('🗑️  [DELETE-ROWS] Items for 1:3:', filtered1_3.map(it => `${it.reference}|${it.normalizedOrigWords}|${it.occurrence}`));
+      } else {
+        console.log('🗑️  [DELETE-ROWS] No items found with reference starting with 1:3');
+      }
+    } else {
+      console.log('🗑️  [DELETE-ROWS] No deleted rows found for book:', book);
+    }
 
     return { statusCode: 200, headers, body: JSON.stringify({ items, count: items.length }) };
   } catch (error) {

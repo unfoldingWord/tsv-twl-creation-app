@@ -31,6 +31,8 @@ export const filterDeletedRowsWithData = (tsvContent, deletedItems) => {
   const keySet = new Set(
     deletedItems.map((it) => `${it.reference}|${(it.normalizedOrigWords || normalizeHebrewText(it.origWords))}|${String(it.occurrence).trim()}`)
   );
+  
+  console.log('🔍 Deleted items keys:', Array.from(keySet));
 
   const updated = [lines[0]];
   for (let i = 1; i < lines.length; i++) {
@@ -55,10 +57,13 @@ export const filterDeletedRowsWithData = (tsvContent, deletedItems) => {
       const updatedRow = [...cols];
       updatedRow[referenceIndex] = `DELETED ${displayRef}`;
       updated.push(updatedRow.join('\t'));
-      console.log(`Auto-deleted ${mergeStatus || 'unmerged'} row: ${displayRef} | ${origWords} | ${occurrence}`);
+      console.log(`✅ Auto-deleted ${mergeStatus || 'unmerged'} row: ${displayRef} | ${origWords} | ${occurrence}`);
     } else {
       if (keySet.has(key) && (mergeStatus === 'MERGED' || mergeStatus === 'OLD')) {
-        console.log(`Skipped auto-deletion of ${mergeStatus} row: ${displayRef} | ${origWords} | ${occurrence}`);
+        console.log(`⏭️  Skipped auto-deletion of ${mergeStatus} row: ${displayRef} | ${origWords} | ${occurrence}`);
+      }
+      if (keySet.has(key)) {
+        console.log(`🔎 Row matches deleted key but not deleted: ref=${reference}, mergeStatus=${mergeStatus}, key=${key}`);
       }
       updated.push(lines[i]);
     }

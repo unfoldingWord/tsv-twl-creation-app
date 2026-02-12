@@ -60,6 +60,13 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
     while (paddedRow.length < finalHeaders.length - 1) {
       paddedRow.push('');
     }
+    
+    // Debug: Check if any imported row already has DELETED prefix
+    const ref = paddedRow[referenceIndex] || '';
+    if (ref.startsWith('DELETED ')) {
+      console.warn(`⚠️  Imported row ${index} already has DELETED prefix: ${ref}`);
+    }
+    
     finalRows.push([...paddedRow, 'OLD']);
   });
 
@@ -173,6 +180,12 @@ export const mergeExistingTwls = async (generatedContent, existingContent, dcsHo
 
         // Update status to MERGED
         finalRows[finalRowIndex][finalRows[finalRowIndex].length - 1] = 'MERGED';
+        
+        // Debug: Log the reference of the merged row
+        const mergedRef = finalRows[finalRowIndex][referenceIndex] || '';
+        if (mergedRef.startsWith('DELETED ')) {
+          console.warn(`⚠️  MERGED row has DELETED prefix: ${mergedRef} | ${genKey}`);
+        }
 
         // Update cursor for this reference to point after this merged row
         referenceCursors.set(genRef, finalRowIndex + 1);
@@ -363,6 +376,13 @@ export const mergeExistingTwlsGeneratedFirst = async (generatedContent, existing
       finalRows.push([...paddedRow, 'MERGED']);
       matchedFetchedIndices.add(matchedFetchedIndex);
       matchedGeneratedIndices.add(genIndex);
+      
+      // Debug: Check if merged row has DELETED prefix
+      const mergedRef = paddedRow[referenceIndex] || '';
+      if (mergedRef.startsWith('DELETED ')) {
+        console.warn(`⚠️  MERGED row (generated-first) has DELETED prefix: ${mergedRef} | ${genKey}`);
+      }
+      
       console.log(`  Added MERGED row at position ${finalRows.length - 1}`);
     } else {
       // No match - add as NEW

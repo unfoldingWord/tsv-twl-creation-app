@@ -157,11 +157,30 @@ export const isWordUnlinked = (origWords, twLink) => {
   const normalizedOrigWords = normalizeHebrewText(origWords);
   const normalizedTWLink = twLink.trim();
 
-  return unlinkedWords.some(
+  const isUnlinked = unlinkedWords.some(
     item => !item.removed && // Only consider non-removed items
-      normalizedOrigWords.includes(normalizeHebrewText(item.origWords)) &&
+      normalizedOrigWords === normalizeHebrewText(item.origWords) && // EXACT match, not substring
       item.twLink.trim() === normalizedTWLink
   );
+  
+  // Debug biblicaltimeday matches
+  if (twLink && twLink.includes('biblicaltimeday')) {
+    console.log(`🔗🔍 [IS-WORD-UNLINKED] Checking: origWords="${origWords}" (normalized: "${normalizedOrigWords}"), twLink="${twLink}"`);
+    console.log(`🔗🔍 [IS-WORD-UNLINKED]   Result: ${isUnlinked}`);
+    if (isUnlinked) {
+      const matches = unlinkedWords.filter(item => 
+        !item.removed &&
+        normalizedOrigWords === normalizeHebrewText(item.origWords) &&
+        item.twLink.trim() === normalizedTWLink
+      );
+      matches.forEach(match => {
+        const matchNormalized = normalizeHebrewText(match.origWords);
+        console.log(`🔗🔍 [IS-WORD-UNLINKED]   Matched by EXACT match: "${match.origWords}" (normalized: "${matchNormalized}")`);
+      });
+    }
+  }
+
+  return isUnlinked;
 };
 
 /**
@@ -241,6 +260,15 @@ export const filterUnlinkedWords = (tsvContent) => {
 
   const unlinkedWords = getUnlinkedWords();
 
+  // Debug: show biblicaltimeday-related unlinked words from localStorage
+  const biblicalTimedayWords = unlinkedWords.filter(w => 
+    w.twLink && w.twLink.includes('biblicaltimeday')
+  );
+  if (biblicalTimedayWords.length > 0) {
+    console.log('🔗💭 [FILTER-UNLINKED] Found biblicaltimeday unlinked words in localStorage:', 
+      biblicalTimedayWords.map(w => `${w.origWords} (normalized: ${normalizeHebrewText(w.origWords)}) | ${w.twLink} | removed: ${w.removed}`));
+  }
+
   // Only use non-removed unlinked words for filtering
   const activeUnlinkedWords = unlinkedWords.filter(word => !word.removed);
 
@@ -263,6 +291,8 @@ export const filterUnlinkedWords = (tsvContent) => {
   // Keep header and process data rows
   const updatedLines = [lines[0]]; // Keep header
 
+  console.log('🔗💭 [FILTER-UNLINKED] Processing', lines.length - 1, 'rows with', activeUnlinkedWords.length, 'active unlinked words');
+
   for (let i = 1; i < lines.length; i++) {
     const columns = lines[i].split('\t');
     if (columns.length > Math.max(origWordsIndex, twLinkIndex)) {
@@ -271,7 +301,28 @@ export const filterUnlinkedWords = (tsvContent) => {
       const reference = referenceIndex !== -1 ? columns[referenceIndex] || '' : '';
 
       // Check if row should be soft deleted
-      if (isWordUnlinked(origWords, twLink) && !reference.startsWith('DELETED ')) {
+      const shouldDelete = isWordUnlinked(origWords, twLink);
+      
+      // Debug: log biblicaltimeday matches
+      if (twLink && twLink.includes('biblicaltimeday')) {
+        console.log(`🔗💭 [FILTER-UNLINKED] Checking biblicaltimeday row: ${reference} | ${origWords} | ${twLink}`);
+        console.log(`🔗💭 [FILTER-UNLINKED]   Should delete: ${shouldDelete}`);
+        
+        if (shouldDelete) {
+          // Find which unlinked word triggered this
+          const normalizedOrigWords = normalizeHebrewText(origWords);
+          const normalizedTWLink = twLink.trim();
+          const matches = activeUnlinkedWords.filter(item => {
+            const itemNormalized = normalizeHebrewText(item.origWords);
+            const linkMatch = item.twLink.trim() === normalizedTWLink;
+            const wordMatch = normalizedOrigWords.includes(itemNormalized);
+            return linkMatch && wordMatch;
+          });
+          console.log(`🔗💭 [FILTER-UNLINKED]   Matched by unlinked words:`, matches);
+        }
+      }
+      
+      if (shouldDelete && !reference.startsWith('DELETED ')) {
         // Soft delete - add DELETED prefix to Reference column
         const updatedRow = [...columns];
         if (referenceIndex !== -1) {

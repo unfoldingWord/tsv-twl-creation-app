@@ -4,11 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-patchedDependencies:
-  twl-generator@1.4.12:
-    hash: ebffad566a3734916124322c021f5cf8ff924f82982a32cfdff4c6e4c546eb79
-    path: patches/twl-generator@1.4.12.patch
-
 importers:
 
   .:
@@ -53,8 +48,8 @@ importers:
         specifier: ^1.1.18
         version: 1.1.18(@babel/core@7.29.0)
       twl-generator:
-        specifier: 1.4.12
-        version: 1.4.12(patch_hash=ebffad566a3734916124322c021f5cf8ff924f82982a32cfdff4c6e4c546eb79)(@babel/core@7.29.0)(react@18.3.1)
+        specifier: 1.4.13
+        version: 1.4.13(@babel/core@7.29.0)(react@18.3.1)
       usfm-js:
         specifier: ^3.4.3
         version: 3.4.3
@@ -2688,8 +2683,8 @@ packages:
   tsv-quote-converters@1.1.18:
     resolution: {integrity: sha512-sDPeFfjOY64G1zPdjPosSDyhbMu/gSkPqLnW+ppcCi2Zj6Shpz9gq1LeUjkV2QySR3ZAcGj6tucpcgWIbdlfdw==}
 
-  twl-generator@1.4.12:
-    resolution: {integrity: sha512-J/XMsAa05XxvYl3KJEWhvuuyXy5D8kxSXZ4wokYjWeS4W96FwMph3h5X6x8Ezp3CMEhQiVx7KlL92M620345lw==}
+  twl-generator@1.4.13:
+    resolution: {integrity: sha512-Sn99kfITrPatifzKrV4QRA4MyQolKZTGAhB/a0DLM5kM2xW9N50q59QQUFn8Z8gPyBFawKQH8TcjyFhq6mN6fQ==}
     engines: {node: '>=18.0.0'}
     hasBin: true
     peerDependencies:
@@ -6232,7 +6227,7 @@ snapshots:
       - debug
       - supports-color
 
-  twl-generator@1.4.12(patch_hash=ebffad566a3734916124322c021f5cf8ff924f82982a32cfdff4c6e4c546eb79)(@babel/core@7.29.0)(react@18.3.1):
+  twl-generator@1.4.13(@babel/core@7.29.0)(react@18.3.1):
     dependencies:
       compromise: 14.14.5
       csv-parse: 5.6.0

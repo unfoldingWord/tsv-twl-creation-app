@@ -1108,7 +1108,7 @@ function App() {
 
       if (existingTwlContent.trim()) {
         console.log('Generated TWL before merging:', generatedTwl);
-        console.log('Merging with existing TWL:', existingTwlContent);
+        console.log('Merging with existing TWL (raw fetched content):', existingTwlContent);
 
         let existingTwlContentWithEnglishOrigWords = '';
         try {
@@ -1793,6 +1793,7 @@ function App() {
                     setLoading(true);
                     try {
                       const content = await fetchTWLContent(selectedBook.value, selectedBranch, dcsHost);
+                      console.log('🌐 Fetched TWL content from DCS:', content);
                       handleExistingTwlChange(content);
                     } catch (err) {
                       setError(`Failed to fetch existing TWL: ${err.message}`);

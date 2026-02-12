@@ -69,6 +69,7 @@ export const removeUnlinkedWordFromServer = async (origWords, twLink) => {
  */
 export const getUnlinkedWordsFromServer = async (includeRemoved = false) => {
   try {
+    console.log('🔗 [CLIENT] Requesting unlinked words, includeRemoved:', includeRemoved);
     const params = new URLSearchParams({
       // Don't filter by userIdentifier - get ALL unlinked words from ALL users
       includeRemoved: includeRemoved.toString(),
@@ -81,6 +82,20 @@ export const getUnlinkedWordsFromServer = async (includeRemoved = false) => {
     }
 
     const result = await response.json();
+    console.log('🔗 [CLIENT] Received unlinked words:', result.count || result.items?.length || 0, 'items');
+    if (result.items && result.items.length > 0) {
+      console.log('🔗 [CLIENT] Sample unlinked word:', result.items[0]);
+      // Filter to show only biblicaltimeday-related items for debugging
+      const filteredBiblicalTimeday = result.items.filter(it => 
+        (it.twLink && it.twLink.includes('biblicaltimeday')) ||
+        (it.origWords && it.origWords.includes('biblicaltimeday'))
+      );
+      if (filteredBiblicalTimeday.length > 0) {
+        console.log('🔗 [CLIENT] Items with "biblicaltimeday":', filteredBiblicalTimeday.map(it => `${it.origWords}|${it.twLink}`));
+      } else {
+        console.log('🔗 [CLIENT] No items found containing "biblicaltimeday"');
+      }
+    }
     return result.items || [];
   } catch (error) {
     console.error('Error getting unlinked words from server:', error);

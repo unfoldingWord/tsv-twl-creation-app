@@ -43,6 +43,9 @@ exports.handler = async (event, context) => {
   try {
     const { userIdentifier } = event.queryStringParameters || {};
 
+    console.log('🔗 [UNLINK-WORDS] Fetching unlinked words, userIdentifier:', userIdentifier || 'all');
+    console.log('🔗 [UNLINK-WORDS] Table:', process.env.TWL_DYNAMODB_TABLE_NAME);
+
     // Build scan parameters
     const scanParams = {
       TableName: process.env.TWL_DYNAMODB_TABLE_NAME,
@@ -58,6 +61,8 @@ exports.handler = async (event, context) => {
 
     const result = await docClient.send(new ScanCommand(scanParams));
 
+    console.log('🔗 [UNLINK-WORDS] Raw DynamoDB result count:', result.Items?.length || 0);
+
     // Transform items for client use
     const items = result.Items.map(item => ({
       id: `${item.origWords}|${item.twLink}`, // Create client-side ID
@@ -69,6 +74,23 @@ exports.handler = async (event, context) => {
       dateAdded: item.dateAdded,
       userIdentifier: item.userIdentifier, // Include userIdentifier field
     }));
+
+    console.log('🔗 [UNLINK-WORDS] Returning', items.length, 'unlinked words');
+    if (items.length > 0) {
+      console.log('🔗 [UNLINK-WORDS] Sample item:', JSON.stringify(items[0], null, 2));
+      // Filter to show only biblicaltimeday-related items for debugging
+      const filteredBiblicalTimeday = items.filter(it => 
+        (it.twLink && it.twLink.includes('biblicaltimeday')) ||
+        (it.origWords && it.origWords.includes('biblicaltimeday'))
+      );
+      if (filteredBiblicalTimeday.length > 0) {
+        console.log('🔗 [UNLINK-WORDS] Items with "biblicaltimeday":', filteredBiblicalTimeday.map(it => `${it.origWords}|${it.twLink}`));
+      } else {
+        console.log('🔗 [UNLINK-WORDS] No items found containing "biblicaltimeday"');
+      }
+    } else {
+      console.log('🔗 [UNLINK-WORDS] No unlinked words found');
+    }
 
     return {
       statusCode: 200,
