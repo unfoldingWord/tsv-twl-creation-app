@@ -61,27 +61,28 @@
 
 When you import a 6-column TWL file, a checkbox appears to control how the app merges the fetched content with newly generated TWLs:
 
-**Default Behavior (Checkbox Unchecked):**
+**Default Behavior (Checkbox Checked - Default):**
+- 🔄 **Ignore Fetched TWLs' Sort Order** (recommended for first-time generation)
+- The generated TWLs maintain their order (as created by the generation algorithm)
+- Fetched TWLs that don't match generated ones are inserted based on their **Bible reference position** in the generated list
+- Creates a completely new sort order based on the generation algorithm
+- **After merging**: Rows are automatically reordered within each verse to match their position in the ULT Bible text
+- **💡 Use this when**: Generating TWLs for a book that **has never had automated TWLs generated** before
+
+**Alternative Behavior (Checkbox Unchecked):**
 - ✅ **Keep Fetched TWLs' Sort Order** (recommended for updates)
 - The fetched/existing TWLs maintain their original order from DCS
 - New generated TWLs are inserted **before or after** matching existing TWLs based on context
 - Preserves the structure of previously generated lists
 - **💡 Use this when**: Updating a recently generated list with new changes or improvements
 
-**Alternative Behavior (Checkbox Checked):**
-- 🔄 **Ignore Fetched TWLs' Sort Order** (recommended for first-time generation)
-- The generated TWLs maintain their order (as created by the generation algorithm)
-- Fetched TWLs that don't match generated ones are inserted based on their **Bible reference position** in the generated list
-- Creates a completely new sort order based on the generation algorithm
-- **💡 Use this when**: Generating TWLs for a book that **has never had automated TWLs generated** before
-
 **🎯 Key Difference:**
 | Scenario | Use Setting |
 |----------|-------------|
-| **First-time generation** for a book | ✅ **Check** "Ignore fetched order" |
-| **Updating** an existing TWL with new changes | ❌ **Uncheck** (default) |
-| **Re-generating** from scratch | ✅ **Check** "Ignore fetched order" |
-| **Preserving** existing sort preferences | ❌ **Uncheck** (default) |
+| **First-time generation** for a book | ✅ **Check** "Ignore fetched order" (default) |
+| **Updating** an existing TWL with new changes | ❌ **Uncheck** |
+| **Re-generating** from scratch | ✅ **Check** "Ignore fetched order" (default) |
+| **Preserving** existing sort preferences | ❌ **Uncheck** |
 
 ### 3️⃣ ⚡ Generate or Load TWL Content
 

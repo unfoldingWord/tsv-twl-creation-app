@@ -77,6 +77,7 @@ import { convertReferenceToTnUrl } from './utils/urlConverters.js';
 import { filterUnlinkedWords, removeUnlinkedWordByContent, getUnlinkedWords, normalizeHebrewText } from './utils/unlinkedWords.js';
 import { filterDeletedRowsWithData } from './utils/deletedRows.js';
 import { addDeletedRowToServer, removeDeletedRowFromServer, getDeletedRowsFromServer } from './services/deletedRowsApi.js';
+import { orderRowsByVersePosition } from './utils/verseOrdering.js';
 import { getUserIdentifier } from './utils/userUtils.js';
 import { saveData, loadData } from './utils/storage.js';
 import { useUnlinkedWords } from './hooks/useUnlinkedWords.js';
@@ -1168,6 +1169,19 @@ function App() {
         console.log('Generated TWL after merging with existing TWL:', generatedTwl);
       }
 
+      // If ignoreFetchedOrder is enabled, reorder rows based on ULT verse position
+      // This applies whether merging or generating new TWL
+      if (ignoreFetchedOrder) {
+        try {
+          console.log('📖 Reordering TWL rows by ULT verse position...');
+          generatedTwl = await orderRowsByVersePosition(generatedTwl, selectedBook.value, dcsHost);
+          console.log('📖 Verse-based reordering complete');
+        } catch (error) {
+          console.warn('📖 Failed to reorder by verse position:', error);
+          // Continue without reordering on error
+        }
+      }
+
       // Ensure all IDs are unique and properly formatted
       generatedTwl = ensureUniqueIds(generatedTwl);
 
@@ -1559,6 +1573,18 @@ function App() {
 
       // Filter out unlinked words and normalize
       let finalContent = filterUnlinkedWords(updatedContent);
+
+      // Keep update flow consistent with initial generation flow
+      if (ignoreFetchedOrder) {
+        try {
+          console.log('📖 Reordering updated TWL rows by ULT verse position...');
+          finalContent = await orderRowsByVersePosition(finalContent, selectedBook.value, dcsHost);
+          console.log('📖 Verse-based reordering complete for updated TWL');
+        } catch (orderError) {
+          console.warn('📖 Failed to reorder updated TWL by verse position:', orderError);
+        }
+      }
+
       finalContent = ensureUniqueIds(finalContent);
       finalContent = normalizeTsvColumnCount(finalContent);
 
@@ -1844,7 +1870,7 @@ function App() {
               )}
 
               {/* Merge order preference checkbox */}
-              {existingTwlContent.trim() && existingTwlValid && (
+              {false && existingTwlContent.trim() && existingTwlValid && (
                 <Box sx={{ mt: 2 }}>
                   <FormControlLabel
                     control={<Checkbox checked={ignoreFetchedOrder} onChange={(e) => setIgnoreFetchedOrder(e.target.checked)} />}
