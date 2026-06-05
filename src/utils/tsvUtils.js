@@ -187,9 +187,12 @@ export const compareReferences = (ref1, ref2) => {
   const parseRef = (ref) => {
     const clean = normalizeRef(ref);
     const parts = clean.split(':');
+    const versePart = (parts[1] || '').trim().toLowerCase();
     return {
       chapter: parseInt(parts[0], 10) || 0,
-      verse: parseInt(parts[1], 10) || 0,
+      // Chapter front matter (\d, e.g. psalm superscriptions) uses the verse
+      // token "front" and sorts ahead of verse 1 within its chapter.
+      verse: versePart === 'front' ? -1 : parseInt(parts[1], 10) || 0,
     };
   };
 

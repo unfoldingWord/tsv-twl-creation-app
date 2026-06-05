@@ -1459,10 +1459,11 @@ const TWLTable = ({
                             const occurrence = row[occurrenceIndex] || '1';
                             const glOccurrence = row[glOccurrenceIndex] || occurrence; // Use GLOccurrence if available, fallback to Occurrence
 
-                            // Parse reference to get chapter and verse
-                            const refMatch = reference.match(/(\d+):(\d+)/);
+                            // Parse reference to get chapter and verse. The verse may be
+                            // the token "front" for chapter front matter (\d superscriptions).
+                            const refMatch = reference.match(/(\d+):(front|\d+)/i);
                             const chapter = refMatch ? parseInt(refMatch[1]) : 1;
-                            const verse = refMatch ? parseInt(refMatch[2]) : 1;
+                            const verse = refMatch ? (refMatch[2].toLowerCase() === 'front' ? 'front' : parseInt(refMatch[2])) : 1;
 
                             onShowScripture({
                               bookId: selectedBook?.value || 'mat',

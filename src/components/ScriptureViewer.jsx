@@ -258,9 +258,11 @@ const parseUSFMContent = (usfmContent, contentType = 'unknown') => {
         const verses = {};
 
         Object.keys(chapterData).forEach((verseKey) => {
-          if (verseKey !== 'front' && chapterData[verseKey]?.verseObjects) {
+          if (chapterData[verseKey]?.verseObjects) {
             const verseContent = extractVerseContent(chapterData[verseKey].verseObjects);
-            verses[parseInt(verseKey)] = verseContent;
+            // Preserve chapter front matter (\d superscription) under a 'front' key so
+            // TWL rows referencing "<chapter>:front" can display their scripture.
+            verses[verseKey === 'front' ? 'front' : parseInt(verseKey)] = verseContent;
 
             // Special debug for verse 3 (Jude 1:3)
             if (parseInt(verseKey) === 3 && parseInt(chapterKey) === 1) {
@@ -844,6 +846,11 @@ const ScriptureViewer = ({ scriptureContext, onClose, dcsHost }) => {
     const verses = [];
     const currentChapter = scriptureData[translation][chapter];
     console.log('Current chapter data:', currentChapter);
+
+    // Chapter front matter (\d superscription) has no surrounding verses to show.
+    if (verse === 'front') {
+      return currentChapter['front'] ? [{ verse: 'front', text: currentChapter['front'].text, morphology: [], isCurrent: true }] : [];
+    }
 
     for (let i = Math.max(1, verse - 2); i <= Math.min(Object.keys(currentChapter).length, verse + 2); i++) {
       if (currentChapter[i]) {
