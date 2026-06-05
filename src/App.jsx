@@ -51,6 +51,7 @@ import {
   CloudUpload as CloudUploadIcon,
   GitHub as GitHubIcon,
   Refresh as UpdateIcon,
+  DeleteForever as DeleteForeverIcon,
 } from '@mui/icons-material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -139,6 +140,26 @@ function App() {
   const [backupTwlContent, setBackupTwlContent] = useState(null);
   const hasBackup = Boolean(backupTwlContent);
 
+  // Count of non-deleted rows with a "NEW" Merge Status (drives the "Delete 'NEW' Links" button)
+  const newLinksCount = useMemo(() => {
+    if (!twlContent) return 0;
+    const lines = twlContent.split('\n').filter((line) => line.trim());
+    if (lines.length < 2) return 0;
+    const headers = lines[0].split('\t');
+    const referenceIndex = headers.findIndex((h) => h === 'Reference');
+    const mergeStatusIndex = headers.findIndex((h) => h === 'Merge Status');
+    if (mergeStatusIndex === -1) return 0;
+    let count = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i].split('\t');
+      const reference = referenceIndex !== -1 ? row[referenceIndex] || '' : '';
+      if ((row[mergeStatusIndex] || '').trim() === 'NEW' && !reference.startsWith('DELETED ')) {
+        count++;
+      }
+    }
+    return count;
+  }, [twlContent]);
+
   // Track original content when entering raw text mode
   const [rawTextOriginalContent, setRawTextOriginalContent] = useState(null);
 
@@ -201,6 +222,11 @@ function App() {
     email: '',
     message: '',
   });
+
+  // Delete 'NEW' links dialog state
+  const [deleteNewConfirmOpen, setDeleteNewConfirmOpen] = useState(false);
+  const [deleteNewResultOpen, setDeleteNewResultOpen] = useState(false);
+  const [deletedNewCount, setDeletedNewCount] = useState(0);
 
   // Confirmation dialog state for work in progress
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -502,6 +528,83 @@ function App() {
       // Reset save states since user made edits
       resetSaveStates();
     }
+  };
+
+  /**
+   * Soft delete every row whose Merge Status is "NEW".
+   *
+   * Mirrors the per-row trash icon behavior (handleDeleteRow with action 'delete'):
+   * each affected row is marked with a DELETED prefix and recorded server-side so the
+   * link does not reappear on the next generation. A single backup is taken first so the
+   * whole operation can be reverted with "Undo Last Change".
+   */
+  const handleDeleteAllNewLinks = async () => {
+    if (!twlContent) return;
+
+    // Create a single backup so Undo restores the list to its pre-delete state
+    createBackup();
+
+    const lines = twlContent.split('\n').filter((line) => line.trim());
+    if (lines.length < 2) return;
+
+    const headers = lines[0].split('\t');
+    const referenceIndex = headers.findIndex((h) => h === 'Reference');
+    const origWordsIndex = headers.findIndex((h) => h === 'OrigWords');
+    const occurrenceIndex = headers.findIndex((h) => h === 'Occurrence');
+    const glQuoteIndex = headers.findIndex((h) => h === 'GLQuote');
+    const glOccurrenceIndex = headers.findIndex((h) => h === 'GLOccurrence');
+    const mergeStatusIndex = headers.findIndex((h) => h === 'Merge Status');
+
+    if (mergeStatusIndex === -1 || referenceIndex === -1) {
+      setDeletedNewCount(0);
+      setDeleteNewResultOpen(true);
+      return;
+    }
+
+    const book = selectedBook?.value;
+    const serverPromises = [];
+    let deletedCount = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i].split('\t');
+      const reference = row[referenceIndex] || '';
+      const isNew = (row[mergeStatusIndex] || '').trim() === 'NEW';
+
+      if (isNew && !reference.startsWith('DELETED ')) {
+        // Record the deletion server-side so the link does not come back next generation
+        if (book && origWordsIndex !== -1 && occurrenceIndex !== -1) {
+          const origWords = row[origWordsIndex] || '';
+          const occurrence = row[occurrenceIndex] || '';
+          const glQuote = glQuoteIndex !== -1 ? row[glQuoteIndex] || '' : '';
+          const glOccurrence = glOccurrenceIndex !== -1 ? row[glOccurrenceIndex] || '' : '';
+          serverPromises.push(
+            addDeletedRowToServer(book, reference, origWords, occurrence, glQuote, glOccurrence).catch((err) =>
+              console.warn('Warning: failed to sync deleted row marker:', err?.message || err)
+            )
+          );
+        }
+
+        // Soft delete locally - add DELETED prefix to the Reference column
+        row[referenceIndex] = `DELETED ${reference}`;
+        lines[i] = row.join('\t');
+        deletedCount++;
+      }
+    }
+
+    // Wait for server markers to finish (failures are logged, not fatal)
+    await Promise.all(serverPromises);
+
+    let newContent = lines.join('\n');
+    newContent = normalizeTsvColumnCount(newContent);
+    setTwlContent(newContent);
+    saveTwlContent(newContent);
+
+    // Reset save states since user made edits
+    resetSaveStates();
+
+    // Report how many were deleted
+    setDeletedNewCount(deletedCount);
+    setDeleteNewResultOpen(true);
   };
 
   /**
@@ -2009,6 +2112,27 @@ function App() {
                     >
                       Save TWLs to File
                     </Button>
+
+                    <Button
+                      onClick={() => setDeleteNewConfirmOpen(true)}
+                      startIcon={<DeleteForeverIcon />}
+                      variant="outlined"
+                      size="small"
+                      disabled={newLinksCount === 0}
+                      sx={{
+                        color: '#d32f2f',
+                        borderColor: '#d32f2f',
+                        backgroundColor: '#fff',
+                        textTransform: 'none',
+                        '&:hover': {
+                          backgroundColor: '#d32f2f',
+                          borderColor: '#d32f2f',
+                          color: '#fff',
+                        },
+                      }}
+                    >
+                      Delete ALL &apos;NEW&apos; Links
+                    </Button>
                   </Box>
 
                   {/* Right side - Commit to DCS button */}
@@ -2236,6 +2360,49 @@ function App() {
               Save to File and Continue
             </Button>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete 'NEW' Links - confirmation dialog */}
+      <Dialog open={deleteNewConfirmOpen} onClose={() => setDeleteNewConfirmOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Delete &apos;NEW&apos; Links?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1">
+            This will mark all &apos;NEW&apos; links as deleted so they don&apos;t come back next time links are generated. Are you sure you want to delete them?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteNewConfirmOpen(false)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setDeleteNewConfirmOpen(false);
+              handleDeleteAllNewLinks();
+            }}
+            variant="contained"
+            sx={{
+              backgroundColor: '#d32f2f',
+              '&:hover': { backgroundColor: '#b71c1c' },
+            }}
+          >
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete 'NEW' Links - result dialog */}
+      <Dialog open={deleteNewResultOpen} onClose={() => setDeleteNewResultOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Links Deleted</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1">
+            {deletedNewCount === 0
+              ? 'No ‘NEW’ links were found to delete.'
+              : `${deletedNewCount} ‘NEW’ link${deletedNewCount === 1 ? ' was' : 's were'} marked as deleted. Use "Undo Last Change" to restore them to this list.`}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteNewResultOpen(false)} variant="contained">
+            OK
+          </Button>
         </DialogActions>
       </Dialog>
 
