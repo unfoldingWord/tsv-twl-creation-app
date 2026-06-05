@@ -309,7 +309,7 @@ const TWLTable = ({
       const trimmedSearch = searchTerm.trim();
       const searchLower = trimmedSearch.toLowerCase();
       const isReferencePrefixSearch = /^[0-9]+:$/.test(trimmedSearch);
-      const isReferenceSuffixSearch = /^:[0-9]+$/.test(trimmedSearch);
+      const isReferenceSuffixSearch = /^:(?:[0-9]+|front)$/i.test(trimmedSearch);
       const isMergeStatusOnlySearch = trimmedSearch === 'OLD' || trimmedSearch === 'MERGED' || trimmedSearch === 'NEW';
       
       filtered = filtered.filter((row) => {
