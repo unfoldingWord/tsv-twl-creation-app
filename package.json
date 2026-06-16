@@ -1,7 +1,7 @@
 {
   "name": "tsv-twl-creation-app",
   "private": true,
-  "version": "1.4.19",
+  "version": "1.4.20",
   "type": "module",
   "scripts": {
     "dev": "netlify dev",
@@ -25,7 +25,7 @@
     "react-icons": "^5.5.0",
     "styled-components": "^6.3.9",
     "tsv-quote-converters": "^1.1.21",
-    "twl-generator": "1.4.15",
+    "twl-generator": "1.4.16",
     "usfm-js": "^3.4.3"
   },
   "devDependencies": {

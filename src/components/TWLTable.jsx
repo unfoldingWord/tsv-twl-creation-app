@@ -73,9 +73,10 @@ const TWLTable = ({
   const [filterAnchorEl, setFilterAnchorEl] = useState(null);
   const [filters, setFilters] = useState({
     hasDisambiguation: null, // null = show all, 'need' = needs disambiguation, 'done' = been disambiguated, false = no disambiguation
-    mergeStatus: '', // '' = show all, 'merged' = show MERGED rows, 'unmerged' = show OLD/NEW rows
+    mergeStatus: [], // [] = show all; any subset of 'MERGED', 'OLD', 'NEW'
     isInvalidRCLink: null, // null = show all, true = is invalid
     isVariant: null, // null = show all, true = has variant info, false = no variant info
+    origWordsMatch: null, // null = show all, 'start' = same Reference + first 3 OrigWords chars, 'end' = same Reference + last 3 OrigWords chars
     deletedRows: null, // null = hide deleted, 'show' = show all, 'only' = only deleted
   });
 
@@ -407,17 +408,34 @@ const TWLTable = ({
       });
     }
 
-    if (filters.mergeStatus !== '') {
+    if (filters.mergeStatus.length > 0) {
       filtered = filtered.filter((row) => {
         if (mergeStatusIndex >= 0 && row[mergeStatusIndex]) {
           const status = row[mergeStatusIndex].trim();
-          if (filters.mergeStatus === 'merged') {
-            return status === 'MERGED';
-          } else if (filters.mergeStatus === 'unmerged') {
-            return status === 'OLD' || status === 'NEW';
-          }
+          return filters.mergeStatus.includes(status);
         }
         return false;
+      });
+    }
+
+    // Apply OrigWords match filter: keep rows that share a Reference and the
+    // first 3 (start) or last 3 (end) characters of OrigWords with another row.
+    if (filters.origWordsMatch && referenceIndex >= 0 && origWordsIndex >= 0) {
+      const keyOf = (row) => {
+        const ref = (row[referenceIndex] || '').trim();
+        const orig = (row[origWordsIndex] || '').trim();
+        if (!ref || !orig) return null;
+        const frag = filters.origWordsMatch === 'start' ? orig.substring(0, 3) : orig.substring(Math.max(0, orig.length - 3));
+        return `${ref}|${frag}`;
+      };
+      const keyCounts = new Map();
+      filtered.forEach((row) => {
+        const k = keyOf(row);
+        if (k) keyCounts.set(k, (keyCounts.get(k) || 0) + 1);
+      });
+      filtered = filtered.filter((row) => {
+        const k = keyOf(row);
+        return k && keyCounts.get(k) > 1;
       });
     }
 
@@ -508,9 +526,10 @@ const TWLTable = ({
   const clearFilters = () => {
     setFilters({
       hasDisambiguation: null,
-      mergeStatus: '',
+      mergeStatus: [],
       isInvalidRCLink: null,
       isVariant: null,
+      origWordsMatch: null,
       deletedRows: null,
     });
     setPage(0);
@@ -860,11 +879,16 @@ const TWLTable = ({
           startIcon={<FilterIcon />}
           size="small"
           endIcon={
-            (filters.hasDisambiguation !== null ||
-              filters.mergeStatus !== '' ||
-              filters.isInvalidRCLink !== null ||
-              filters.isVariant !== null ||
-              filters.deletedRows !== null) && <Chip size="small" label={Object.values(filters).filter((v) => v !== null && v !== '').length} color="primary" sx={{ ml: 1 }} />
+            (() => {
+              const activeCount =
+                (filters.hasDisambiguation !== null ? 1 : 0) +
+                (filters.mergeStatus.length > 0 ? 1 : 0) +
+                (filters.isInvalidRCLink !== null ? 1 : 0) +
+                (filters.isVariant !== null ? 1 : 0) +
+                (filters.origWordsMatch ? 1 : 0) +
+                (filters.deletedRows !== null ? 1 : 0);
+              return activeCount > 0 ? <Chip size="small" label={activeCount} color="primary" sx={{ ml: 1 }} /> : null;
+            })()
           }
         >
           Filter
@@ -964,13 +988,43 @@ const TWLTable = ({
                 <Typography variant="body2" sx={{ mt: 2, mb: 1, fontWeight: 'bold' }}>
                   Merge Status:
                 </Typography>
+                {[
+                  { value: 'MERGED', label: 'Merged' },
+                  { value: 'OLD', label: 'Old' },
+                  { value: 'NEW', label: 'New' },
+                ].map(({ value, label }) => (
+                  <FormControlLabel
+                    key={value}
+                    control={
+                      <Checkbox
+                        checked={filters.mergeStatus.includes(value)}
+                        onChange={(e) =>
+                          handleFilterChange(
+                            'mergeStatus',
+                            e.target.checked ? [...filters.mergeStatus, value] : filters.mergeStatus.filter((v) => v !== value)
+                          )
+                        }
+                      />
+                    }
+                    label={label}
+                  />
+                ))}
+              </>
+            )}
+
+            {/* OrigWords match filter (mutually exclusive; either may be deselected) */}
+            {origWordsIndex >= 0 && (
+              <>
+                <Typography variant="body2" sx={{ mt: 2, mb: 1, fontWeight: 'bold' }}>
+                  OrigWords Match:
+                </Typography>
                 <FormControlLabel
-                  control={<Checkbox checked={filters.mergeStatus === 'merged'} onChange={(e) => handleFilterChange('mergeStatus', e.target.checked ? 'merged' : '')} />}
-                  label="Merged"
+                  control={<Checkbox checked={filters.origWordsMatch === 'start'} onChange={(e) => handleFilterChange('origWordsMatch', e.target.checked ? 'start' : null)} />}
+                  label="Same OrigWords Start"
                 />
                 <FormControlLabel
-                  control={<Checkbox checked={filters.mergeStatus === 'unmerged'} onChange={(e) => handleFilterChange('mergeStatus', e.target.checked ? 'unmerged' : '')} />}
-                  label="Unmerged"
+                  control={<Checkbox checked={filters.origWordsMatch === 'end'} onChange={(e) => handleFilterChange('origWordsMatch', e.target.checked ? 'end' : null)} />}
+                  label="Same OrigWords End"
                 />
               </>
             )}
